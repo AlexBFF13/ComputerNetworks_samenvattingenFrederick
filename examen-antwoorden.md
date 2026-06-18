@@ -1,841 +1,874 @@
-# Computernetwerken — Academische Examenantwoorden
+# Computernetwerken — Open-Boek Referentiegids
 
-> Gebaseerd op de cursusteksten uit deze repository.
-
----
-
-## Deel 1 — Application Layer (Laag 7)
-
-### 1. Gnutella bovenop een Chord Overlay-netwerk
-
-**Wat vervangt Chord?**
-
-De cursustekst beschrijft Gnutella als een *"unstructured decentralized overlay network"* met flooding-gebaseerde zoekopdrachten (QUERY-berichten met TTL). Het grote probleem is het **search horizon**-probleem: *"te lage TTL: je vindt te weinig; te hoge TTL: je overspoelt het netwerk."*
-
-Chord is een **gestructureerde DHT** (Distributed Hash Table) die bestanden mapt op nodes via consistente hashing. In een hybride ontwerp:
-
-**Wat Chord vervangt:**
-- De willekeurige graaf-topologie van Gnutella → Chord geeft een deterministische ring-structuur met O(log N) finger-table-entries per node.
-- Het flooding-mechanisme voor resource discovery → in plaats van QUERY-berichten te flooden, hash je de bestandsnaam en zoek je de verantwoordelijke node in O(log N) hops.
-
-| Aspect | Gnutella alleen | Gnutella op Chord overlay |
-|---|---|---|
-| Netwerk-overhead | Hoog — flooding met TTL, O(N) berichten | Laag — O(log N) gerichte hops |
-| Zoekgarantie | Niet gegarandeerd (TTL-horizon) | Gegarandeerd als bestand bestaat |
-| Privacy / anonimiteit | Redelijk — zoekopdracht verspreidt zich breed | Lager — zoekpad is deterministisch en traceerbaar |
-| Robuustheid bij uitval | Hoog — redundante paden | Medium — keystorage-nodes moeten beschikbaar zijn |
-| Schaalbaarheid | Slecht bij grote netwerken | Goed — O(log N) per lookup |
-
-**Vereisten aan de hashfunctie van Chord**
-
-Chord gebruikt consistente hashing (SHA-1 of gelijkwaardig). De hashfunctie moet aan twee eisen voldoen:
-
-1. **Uniforme (random) verdeling over de keyspace**: elke node krijgt een gelijkmatig deel van de 2^160 keyruimte verantwoordelijk. Nodes worden via hashing geplaatst op een circulaire ring van 0 tot 2^160 − 1.
-
-2. **Uniciteit (collision-vrij)**: twee verschillende bestanden of nodes mogen niet dezelfde hashwaarde krijgen, anders zou één node verantwoordelijk zijn voor twee conflicterende resources.
-
-**Effect als de hash niet random of uniform verdeeld is:**
-
-- **Hotspot-probleem**: als bepaalde sleutels geconcentreerd zijn rond bepaalde waarden (b.v. alle bestandsnamen beginnen met een letter van A-D), dan dragen de nodes die verantwoordelijk zijn voor dat deel van de ring een disproportioneel grote load. Dit zijn zogenaamde *hot nodes* die overbelast raken terwijl de rest van het netwerk onderbenut is.
-- **Ongelijke verantwoordelijkheidsgebieden**: als nodes via een slechte hashfunctie geclusterd worden op de ring (in plaats van uniform verdeeld), krijgen sommige nodes een enorm groot "virtueel segment" van de keyspace en andere bijna niets.
-- **Praktische oplossing**: Chord gebruikt "virtual nodes" (elke fysieke node heeft meerdere virtuele posities op de ring) en een cryptografisch sterke hashfunctie (SHA-1) om statistisch uniform te verspreiden.
+> G0Q43A · KU Leuven · Examen 8 juni 2026
+> Geoptimaliseerd voor snelle opzoeking onder tijdsdruk. Focus: architecturale logica, cross-layer redenering, ontwerpkeuzes.
 
 ---
 
-### 2. Spionage in Gnutella 0.4 versus Gnutella 0.6
+## Inhoudstafel
 
-**Gnutella 0.4 architectuur**
+**1. Application Layer**
+- 1.1 DNS: hybride resolutie-architectuur
+- 1.2 DHCP: bootstrapping zonder IP
+- 1.3 FTP: NAT-incompatibiliteit en passieve modus
+- 1.4 Gnutella 0.4 vs 0.6: architectuur, spionage, transport
+- 1.5 TOR: kennisverdeling, minimale hops, surveillance
+- 1.6 HTTP 1.0 vs 1.1: persistent connections
+- 1.7 P2P chat-app: overlay-ontwerpkeuze
+- 1.8 NAT: applicatielaagproblemen en traversal
 
-Vlak netwerk: alle peers zijn gelijk. QUERY-berichten worden via flooding met TTL doorgegeven. Elke node ziet berichten van zijn directe buren.
+**2. Transport Layer**
+- 2.1 RTP vs TCP: sequencing, download vs stream, congestie
+- 2.2 Sliding Windows: formules, satelliet, LoRa
+- 2.3 TCP Flow Control vs Go-Back-N vs Selective Repeat
+- 2.4 ACK Clock: zelfregulerende pacing
+- 2.5 Nagle + Delayed ACKs: interactieprobleem
+- 2.6 TCP Tahoe vs Reno: verliesreactie
+- 2.7 QUIC: ontwerp en verschil met TCP
+- 2.8 Congestion Notificatie: Choke/ECN/RED
 
-**Gnutella 0.6 architectuur**
+**3. Network Layer**
+- 3.1 IPv4 Fragmentatie vs Path MTU Discovery
+- 3.2 IPv6 SLAAC: privacy via EUI-64
+- 3.3 IPv6: geen header checksum — waarom?
+- 3.4 IoT en de IP Stack (6LoWPAN)
+- 3.5 AODV vs OSPF: reactief vs proactief + count-to-infinity
+- 3.6 OSPF vs BGP: intra-AS vs inter-AS
+- 3.7 Subnetting: methode + routing tables + ARP
+- 3.8 PDU-analyse bij multi-hop routing
+- 3.9 NAT-problemen + traversal-technieken
+- 3.10 Adressering per laag: IP vs MAC vs poort
+- 3.11 Zigbee/BLE mesh routing naar IPv6 gateway
 
-Hiërarchisch: ultrapeers (supernodes) verbinden leaf nodes. Ultrapeers dragen het zoekverkeer; leaf nodes connecteren alleen met ultrapeers.
+**4. Data Link & Physical Layer**
+- 4.1 CSMA/CA: Hidden/Exposed Terminal + RTS/CTS + NAV
+- 4.2 BMAC vs TSMP: preamble/sampling trade-off + fusie
+- 4.3 Hub vs Switch: architectuur, collision domains, privacy
+- 4.4 Collision Domains en Kabellengte (CSMA/CD)
+- 4.5 802.11 Packet Loss als TCP Congestion Signaal
+- 4.6 LoRa: beperkingen, ALOHA-analyse, MAC-verbeteringen
+- 4.7 Pure ALOHA vs Slotted ALOHA
+- 4.8 Framing: byte-stuffing vs bit-stuffing
+- 4.9 Ethernet Frame Padding + Minimum Frame
+- 4.10 Stop-and-Wait: wanneer goed/slecht
+- 4.11 Null MAC: problemen onder belasting
+- 4.12 802.11 Power Saving (twee strategieen)
+- 4.13 Cross-layer: MAC-protocol keuze bij AODV
 
 ---
 
-**Scenario A: Ongelimiteerde resources**
+## 1. Application Layer
 
-*Gnutella 0.4:*
-- Stel honderden nodes op die verbinden met veel peers tegelijk.
-- Elk inkomende QUERY passeert via flooding, wat betekent dat jouw nodes een groot deel van het netwerk zien.
-- Door als centrale knooppunten te fungeren (hoge degree) zie je het meeste verkeer.
-- Je ziet: **alle QUERY-keywords** die over jou passeren, IP-adressen van aanvragers, TTL (geeft positie in het netwerk).
-- Via QUERYHIT zie je: bestandsnamen, bestandsgroottes, IP van de node die het bestand heeft.
+### 1.1 DNS: Hybride Resolutie-architectuur
 
-*Gnutella 0.6:*
-- Word ultrapeer op meerdere plekken in het netwerk.
-- Ultrapeers zien **alle QUERY's van hun leaf nodes** + QUERY's van buurultrapeers.
-- Als je 10% van de ultrapeers controleert, zie je al een significant deel van het verkeer (leaf nodes verbinden met slechts 1-3 ultrapeers).
-- Je ziet: welke leaf node welke keywords zoekt, en via QUERYHIT wie welk bestand aanbiedt.
+**Waarom recursief + iteratief gecombineerd?**
 
-**Scenario B: Beperkte resources (1 node)**
+| Aspect | Puur Iteratief | Puur Recursief | Hybride (actueel) |
+|---|---|---|---|
+| Client-complexiteit | Hoog — client chased referrals zelf | Laag — één vraag, één antwoord | Laag |
+| Load op root servers | Hoog — elke client begint bij root | Exploderend — server moet alles resolven | Laag — enkel stateless referrals |
+| Caching | Geen gedeelde cache | Server cached, maar niet schaalbaar | Lokale resolver cached voor hele regio |
+| Schaalbaarheid | Slecht | Slecht | Goed |
 
-*Gnutella 0.4 — als gewone peer:*
-- Je verbindt met enkele peers (typisch 5-10 directe verbindingen).
-- Je ziet enkel QUERY's die via jouw directe verbindingen passeren.
-- Zichtbare data:
-  - **QUERY**: zoektermen, unieke MessageID, TTL, IP van de zender (jouw directe buur)
-  - **QUERYHIT**: bestandsnaam, filesize, SHA-hash, IP+poort van de aanbieder
-  - **PING/PONG**: IP-adressen en poorten van actieve peers
+Het hybride model werkt omdat elke component doet waar hij goed in is:
+- **Client** → recursieve vraag aan lokale resolver (eenvoud)
+- **Lokale resolver** → iteratieve stappen naar root/TLD (gedeelde cache absorbeert load)
+- **Root servers** → stateless referrals (schaalbaar, anycast)
 
-*Gnutella 0.6 — als leaf node bij een ultrapeer:*
-- Je verbindt enkel met de ultrapeer. Je ziet alleen berichten die jouw ultrapeer jou stuurt.
-- Je krijgt geen routing-QUERY's van andere leaf nodes te zien.
-- Beperkte zichtbaarheid: je kan enkel jouw eigen zoekopdrachten en antwoorden observeren.
+**Waarom DNS over UDP?** DNS-queries zijn klein, kort, one-shot. TCP's three-way handshake per lookup (en per iteratieve hop) verveelvoudigt overhead. UDP maakt anycast mogelijk: meerdere fysieke servers delen één IP voor redundantie. Bij te groot antwoord: fallback naar TCP.
 
-*Gnutella 0.6 — als ultrapeer (beperkte resources):*
-- Je beheert meerdere leaf nodes en peert met andere ultrapeers.
-- Je ziet alle QUERY's van jouw leaf nodes (hun zoekgedrag).
-- **Afleidbare informatie**:
-  - Tijdstip van zoekopdrachten → activiteitspatronen van gebruikers
-  - Zoektermen → interesses, mogelijk illegale content
-  - IP-adres van leaf nodes → geolokalisatie
-  - Bestandsnamen in QUERYHIT → wat gebruikers op hun computer hebben
+---
 
-**Vergelijkingstabel:**
+### 1.2 DHCP: Bootstrapping zonder IP
 
-| Aspect | 0.4 (gewone peer) | 0.4 (centrale peer) | 0.6 (leaf node) | 0.6 (ultrapeer) |
+**Flow: DISCOVER → OFFER → REQUEST → ACK**
+
+| Fase | Richting | Bron-IP | Doel-IP | Waarom broadcast? |
 |---|---|---|---|---|
-| Zichtbaar verkeer | Beperkt (nabijheid) | Groot deel netwerk | Eigen verkeer | Alle leaf nodes + peers |
-| Anonimiteit gebruikers | Relatief hoog | Laag | Hoog | Laag |
-| Resources vereist | Laag | Hoog | Laag | Medium |
-| Detecteerbaarheid | Laag | Hoog (hoge degree) | Laag | Medium |
+| DISCOVER | Client → all | 0.0.0.0 | 255.255.255.255 | Client kent noch eigen IP noch server-IP |
+| OFFER | Server → all/client | Server-IP | 255.255.255.255 | Client heeft nog geen IP om unicast te ontvangen |
+| REQUEST | Client → all | 0.0.0.0 | 255.255.255.255 | Informeert ook afgewezen servers |
+| ACK | Server → client | Server-IP | Client-IP of broadcast | Bevestigt lease |
+
+Na ACK: client doet Duplicate Address Detection via gratuitous ARP. Bij conflict: DHCPDECLINE → herstart.
+
+**Waarom TCP fundamenteel onmogelijk is:** TCP vereist een three-way handshake met geldig bron-IP én doel-IP. Tijdens DISCOVER heeft de client geen van beide. TCP is unicast en connection-oriented; DHCP heeft broadcast nodig. UDP laat toe vanuit 0.0.0.0 naar 255.255.255.255 te zenden zonder voorafgaande state.
+
+**Lease-tijd trade-off (Hughes-focus):** korte leases → efficiënte herbruik van schaarse adressen, meer server-load. Lange leases → minder overhead, maar adressen blijven geblokkeerd door inactieve hosts.
 
 ---
 
-### 3. TOR-netwerken
+### 1.3 FTP: NAT-incompatibiliteit
 
-**Welke informatie bezit elke node?**
+**Waarom twee TCP-verbindingen?** Control (poort 21) blijft persistent voor de hele sessie; data (poort 20) wordt per bestandsoverdracht opgezet en afgebroken. Dit scheidt commando's van datatransfer — een abort-commando wordt niet geblokkeerd door een buffervolle datastream.
 
-| Node | Bron-IP | Bestemming-IP | Data | Vorige hop | Volgende hop | Sessiesleutels |
-|---|---|---|---|---|---|---|
-| Entry Node | **Ja** (echte client) | Nee | Versleuteld (2 lagen) | Client (direct) | Intermediate node IP | Gedeelde sleutel met client |
-| Intermediate Node | Nee | Nee | Versleuteld (1 laag) | Entry node IP | Exit node IP | Gedeelde sleutel met client |
-| Exit Node | Nee | **Ja** (echte server) | Plaintext (als HTTP) | Intermediate node IP | Server (internet) | Gedeelde sleutel met client |
+**Active FTP faalt achter NAT:**
+```
+Client (privé 192.168.1.10) → NAT → Server (publiek 203.0.113.5)
+1. Client → Server:21 (control) ✓ uitgaand, NAT maakt mapping
+2. Client stuurt PORT 192.168.1.10,p  (privé-adres in payload!)
+3. Server → 192.168.1.10:p (inkomend) ✗ NAT heeft geen mapping
+   → packet gedropt → data mislukt
+```
+Kernprobleem: NAT houdt enkel state bij voor uitgaande verbindingen. FTP embedt IP-adressen in de payload; NAT herschrijft die niet.
 
-De cursustekst: *"alle links in TOR zijn versleuteld, behalve de uitgaande link vanaf de exit node naar het gewone internet."*
-
-**Hoeveel intermediate nodes zijn wiskundig minstens nodig voor anonimiteit?**
-
-Het minimum is **1 intermediate node** (totaal 3 nodes in het circuit: Entry + Intermediate + Exit).
-
-Redenering:
-- Met **0 intermediate nodes** (Entry + Exit): de entry node kent de echte bron-IP, de exit node kent de echte bestemming. Eén gecompromitteerde adversary die beide controleert, of één rechterlijk bevel aan beide providers, levert volledige deanonymisatie op. Bovendien kent de entry node zowel de bron als de volgende hop (= exit = bestemming). Een adversary met toegang tot entry en kennis van uitgangsverkeer kan correleren.
-- Met **1 intermediate node** (3 nodes): geen enkele node kent zowel bron als bestemming. Een adversary moet zowel de entry ALS de exit node controleren voor correlatie-aanvallen. De intermediate node fungeert als een "firewall" die de directe link breekt.
-
-**Nadelen van 10 hops:**
-
-1. **Latency**: elke hop voegt een volledige RTT toe. Bij 50-200 ms per hop: 10 hops × gemiddeld 100 ms = 1 seconde extra latentie per richtingswisseling.
-
-2. **Verhoogde detectiekans**: als een adversary 20% van de TOR-nodes controleert, is de kans dat minstens één gecompromitteerde node op een pad zit: `1 - (0.8)^N`. Voor N=3: ~49%. Voor N=10: ~89%. Meer hops kan paradoxaal *minder* veilig zijn.
-
-3. **Geen extra bescherming tegen globale observatie**: een *global passive adversary* (NSA-niveau) kan nog altijd timing-correlatie doen, ongeacht het aantal hops. Het fundamentele aanvalsmodel wordt niet door extra hops verslagen.
-
-4. **Vaste cell-grootte in TOR**: TOR gebruikt fixed-size cells om traffic analysis te bemoeilijken, maar dat helpt niet bij globale timing-correlatie.
+**Passive FTP (PASV) oplossing:** server opent luisterpoort, client initieert dataverbinding uitgaand → NAT laat dit door. Beide verbindingen (control + data) zijn nu outbound vanuit client.
 
 ---
 
-### 4. DNS Resolutie-architectuur
+### 1.4 Gnutella: Architectuur en Spionage
 
-**Vergelijking: Puur Iteratief vs. Puur Recursief**
+**0.4 vs 0.6 kernverschil:**
 
-De cursustekst: *"DNS-lookup combineert typisch een recursive component aan de kant van de lokale name server en iterative stappen hoger in de hiërarchie."*
-
-| Kenmerk / Metriek | Puur Iteratieve DNS | Puur Recursieve DNS |
+| | 0.4 (vlak) | 0.6 (hiërarchisch) |
 |---|---|---|
-| **Caching Effectiviteit** | Laag — elke client doet zijn eigen lookup; gedeelde cache-infrastructuur ontbreekt | Hoog — de lokale resolver cached antwoorden voor alle clients tegelijk (TTL-gebaseerd) |
-| **Load op Root Name Servers** | Hoog — elke client begint zelf bij de root voor elke query | Laag — roots sturen enkel stateless referrals terug; lokale resolvers bufferen root-antwoorden |
-| **Garantie op Partiële Data** | Laag — als een tussenliggende server uitvalt, heeft de client geen fallback | Medium — de recursieve server kan zijn eigen cache raadplegen en gedeeltelijk antwoorden |
-| **End-to-End Latency (client)** | Hoog — de client maakt meerdere round trips (root → TLD → authoritative) | Laag — de client communiceert enkel met de lokale resolver en wacht op één antwoord |
-| **Complexiteit voor client** | Hoog — de client implementeert de volledige iteratieve logica | Laag — de client stelt één vraag en krijgt één antwoord |
-| **Schaalbaarheid** | Slecht — root servers worden bottleneck bij miljoenen directe clients | Goed — lokale resolvers absorberen het gros van de queries via caching |
+| Topologie | Alle peers gelijk | Ultrapeers + leaf nodes |
+| Zoekverkeer | Flooding via alle peers | Geconcentreerd op ultrapeers |
+| Schaalbaarheid | Slecht (O(N) berichten) | Beter |
+| Anonimiteit | Hoger (enkel buren kennen je) | **Lager** — ultrapeer ziet alles van zijn leaves |
 
-**Waarom het hybride model superieur is:**
+**Spionage-scenario (open-boek favoriet):**
 
-Het hybride model (client → lokale resolver recursief, lokale resolver → root/TLD iteratief) combineert de voordelen van beide:
-- De **client** heeft de eenvoud van een recursieve aanpak (één vraag, één antwoord).
-- De **root servers** zijn stateless en schaalbaar (enkel referrals, geen state bijhouden).
-- De **lokale resolver** heeft een grote gedeelde cache die de load op de rest van de hiërarchie drastisch verlaagt.
+*Beperkte resources (1 node):*
+- **0.4 als gewone peer:** je ziet enkel QUERY/QUERYHIT die via jouw directe buren passeren. Beperkt zicht.
+- **0.6 als leaf node:** je ziet enkel je eigen verkeer. Minimaal zicht.
+- **0.6 als ultrapeer:** je ziet alle QUERY's van jouw leaf nodes + buurultrapeers. Je kent: zoektermen, IP-adressen, bestandslijsten, activiteitspatronen.
 
----
+*Ongelimiteerde resources:*
+- **0.4:** deploy honderden nodes met hoge degree → zie groot deel van flooding-verkeer
+- **0.6:** word ultrapeer op meerdere plekken → 10% van ultrapeers controleren = significant deel van het verkeer zichtbaar
 
-### 5. FTP en NAT-incompatibiliteit
+**Hughes-punt:** 0.6 koopt performantie maar verliest anonimiteit — copyright surveillance wordt triviaal.
 
-**Waarom twee afzonderlijke TCP-poorten?**
-
-De cursustekst: *"FTP is een bestandsprotocol met gescheiden control- en datakanalen, wat het architecturaal anders maakt dan HTTP."*
-
-De scheiding van control (poort 21) en data (poort 20) biedt twee voordelen:
-1. **Persistente sessies**: het controlekanaal blijft open voor de hele FTP-sessie (meerdere bestandsoverdrachten), terwijl datakanalen per overdracht worden opgezet en afgebroken.
-2. **Orthogonaliteit**: commandoverwerking en datatransfer kunnen onafhankelijk verlopen, wat eenvoudigere implementatie van de toestandsmachine mogelijk maakt.
-
-**Waarom Active FTP onvermijdelijk faalt achter NAT**
-
-```
-Client (192.168.1.10, achter NAT) → Server (203.0.113.5)
-Stap 1: Client opent TCP-verbinding naar server:21 (control) ✓ NAT laat dit door
-Stap 2: Client stuurt: PORT 192.168.1.10,200,105 (= privé-IP:51309)
-Stap 3: Server probeert TCP SYN naar 192.168.1.10:51309 (van buiten naar binnen)
-→ NAT heeft GEEN mapping voor inkomende verbinding op poort 51309
-→ NAT dropt het packet
-→ Dataverbinding mislukt
-```
-
-Het fundamentele probleem: NAT houdt enkel state bij voor *uitgaande* verbindingen. Een inkomende verbinding die de *server* initieert naar het privé-IP van de client, is voor de NAT-box onbekend en wordt gedropt. Firewalls versterken dit: inkomende verbindingen op willekeurige hoge poorten zijn typisch geblokkeerd.
-
-**Hoe Passive FTP (PASV) dit oplost**
-
-```
-Client → Server: PASV
-Server → Client: 227 Entering Passive Mode (203,0,113,5,200,105)
-                 (= verbind met 203.0.113.5:51309)
-Client → Server: TCP SYN naar 203.0.113.5:51309 (CLIENT initieert data!)
-NAT: uitgaande verbinding → NAT maakt mapping aan → ✓ werkt
-```
-
-Met PASV initieert de **client** beide verbindingen (control én data). Alle TCP-verbindingen zijn outbound vanuit het NAT-netwerk. NAT ondersteunt dit naadloos. De server geeft zijn eigen publieke IP en een willekeurige poort terug via het controlekanaal.
+**Transport-keuze:** Discovery (PING/PONG/QUERY) → UDP past: klein, connectionless, flooding-vriendelijk. Bestandsoverdracht → TCP/HTTP: betrouwbaar, geordend, volledig bestand vereist.
 
 ---
 
-### 6. DHCP en UDP
+### 1.5 TOR: Kennisverdeling en Surveillance
 
-**De vier fasen van de DHCP-uitwisseling**
+**Wat weet elke node?**
 
-De cursustekst: *"De basisflow van DHCP is: DISCOVER → OFFER → REQUEST → ACK."*
+| Node | Bron-IP | Bestemming | Data | Vorige hop | Volgende hop |
+|---|---|---|---|---|---|
+| Entry | **Ja** | Nee | Versleuteld (2 lagen) | Client | Intermediate |
+| Intermediate | Nee | Nee | Versleuteld (1 laag) | Entry | Exit |
+| Exit | Nee | **Ja** | Plaintext (als geen end-to-end encryptie) | Intermediate | Server |
 
-**Fase 1 — DHCPDISCOVER (Client → Broadcast)**
-- De client heeft nog geen IP-adres.
-- Bron-IP: `0.0.0.0` (onbekend), doel-IP: `255.255.255.255` (broadcast).
-- De client kiest een willekeurige **Transaction ID** om antwoorden te koppelen.
-- Vraag: "Is er een DHCP-server die mij een adres kan geven?"
+**Minimum: 3 nodes (entry + 1 intermediate + exit).** Met 2 nodes (entry = exit of direct entry→exit): één node kent zowel bron als bestemming → volledige deanonymisatie. De intermediate node breekt deze directe link.
 
-**Fase 2 — DHCPOFFER (Server → Broadcast/Unicast)**
-- De DHCP-server antwoordt met een voorstel: een IP-adres, subnetmask, gateway, DNS-servers, en de **lease-tijd**.
-- Bevat dezelfde Transaction ID als de DISCOVER.
-- Omdat de client nog geen adres heeft, kan dit als broadcast teruggestuurd worden.
-- Meerdere servers kunnen aanbieden; de client kiest één.
+**Waarom NIET 10 hops:**
+1. Latency: elke hop ≈ 100 ms → 10 hops = 1s extra
+2. Paradoxaal onveiliger: kans op gecompromitteerde node = 1 − (1−p)^N. Bij p=20%: N=3 → 49%, N=10 → 89%
+3. Globale timing-correlatie (state actor) wordt niet door extra hops verslagen
 
-**Fase 3 — DHCPREQUEST (Client → Broadcast)**
-- De client bevestigt zijn keuze voor een specifieke server (via Server Identifier option).
-- Nogmaals broadcast: andere servers die ook een OFFER stuurden, weten zo dat hun aanbod afgewezen is.
-- Bron-IP: nog steeds `0.0.0.0` (het adres is nog niet officieel geaccepteerd).
+**Surveillance met beperkte vs onbeperkte resources:**
+- **Beperkt:** run exit nodes, log plaintext verkeer + traffic-pattern analyse. Je ziet content maar zelden de afzender.
+- **Onbeperkt (state actor):** globale timing-correlatie — observeer entry én exit, correleer packet-timing/volume end-to-end.
 
-**Fase 4 — DHCPACK (Server → Client)**
-- De server bevestigt de toewijzing. Nu is het IP-adres officieel geleased.
-- Na ontvangst doet de client **Duplicate Address Detection** via ARP (gratuitous ARP) om te controleren of het adres al in gebruik is.
-- Bij conflict: client stuurt DHCPDECLINE en begint opnieuw.
-
-**Waarom is DHCP over TCP fundamenteel onmogelijk?**
-
-TCP vereist een **three-way handshake** om een verbinding op te zetten: `SYN → SYN-ACK → ACK`. Daarvoor heeft een host nodig:
-1. Een geldig **bron-IP-adres** voor zijn SYN-pakket.
-2. Een geldig **doel-IP-adres** van de server (de client weet niet welke DHCP-server aanwezig is).
-
-Tijdens DHCPDISCOVER heeft de client **noch een bron-IP, noch een server-IP**. Er is geen manier om een TCP-handshake te initiëren. TCP is per definitie unicast en connection-oriented; DHCP heeft een broadcast nodig in de discovery-fase. UDP laat toe dat de client zendt vanuit `0.0.0.0` naar `255.255.255.255` zonder enige voorafgaande state, wat precies past bij de bootstrapping-situatie van een DHCP-client.
+Kern: TOR beschermt tegen lokale adversary, niet tegen wie beide uiteinden simultaan observeert.
 
 ---
 
-## Deel 2 — Transport Layer (Laag 4)
+### 1.6 HTTP 1.0 vs 1.1
 
-### 1. RTP versus TCP
+HTTP/1.0 opent een **nieuwe TCP-verbinding per object** (handshake + slow-start kost per keer). HTTP/1.1 gebruikt **persistent connections** (hergebruik van één TCP-verbinding) en **pipelining** (volgende request sturen zonder te wachten op response).
 
-**Sequencenummers**
+Voordeel is het grootst bij pagina's met veel embedded objecten (moderne webpagina's).
+
+**Cross-layer inzicht (Hughes-favoriet):** HTTP/1.0 is "connectionless/stateless" op applicatielaag maar draait over connection-oriented TCP. Een applicatieprotocol kan connectionless zijn terwijl het transport connection-oriented is.
+
+---
+
+### 1.7 P2P Chat-app: Overlay-ontwerpkeuze
+
+Per fase de juiste overlay kiezen en beargumenteren:
+
+| Fase | Beste overlay | Waarom |
+|---|---|---|
+| Login / presence (wie is online) | Napster-stijl centraal of Gnutella 0.6 superpeers | Betrouwbare, queryable directory nodig; flooding is verspilling voor presence |
+| Peer discovery / contact opzoeken | Gnutella 0.6 | Superpeers routen lookups efficiënt; leaves blijven licht |
+| 1-op-1 chat | Directe verbinding (zoals Gnutella HTTP transfer) | Minimale latency, geen overhead |
+| Groot bestand delen naar groep | BitTorrent (swarming, chunked) | Schaalbaar bij populaire content |
+
+Praktische randkwestie: NAT traversal via PUSH/relay mechanisme.
+
+---
+
+### 1.8 NAT: Problemen op Applicatieniveau
+
+NAT herschrijft IP/poort aan de boundary maar **niet** IP-adressen in applicatie-payloads, en blokkeert inkomende verbindingen. Protocollen die hun eigen adressen in de payload dragen, breken: FTP active mode, SIP/VoIP.
+
+**Twee traversal-technieken:**
+1. **Client-geïnitieerde verbindingen** — FTP passive mode, Gnutella PUSH
+2. **Relays/helpers** — STUN/TURN (ontdek publiek mapping of relay via server), ALG (NAT herschrijft bekende payloads), UPnP port mapping
+
+---
+
+## 2. Transport Layer
+
+### 2.1 RTP vs TCP
 
 | Eigenschap | TCP | RTP |
 |---|---|---|
-| Grootte | 32-bit | 16-bit (+ 32-bit timestamp apart) |
-| Wat wordt genummerd | Bytes (bytepositie in de stream) | Packets (oplopend per packet met ±1) |
-| Doel | Volgordebeheer, retransmissie, SACK, flow control | Verliesdetectie, volgordeherstel voor afspeelbuffer |
-| Timing | Impliciet via RTT-schatting | Expliciet via 32-bit RTP-timestamp (mediatingeenheid) |
+| Sequencenummers | 32-bit, telt **bytes** | 16-bit, telt **packets** |
+| Doel nummering | Volgorde, retransmissie, SACK | Verliesdetectie, volgordeherstel voor afspeelbuffer |
+| Timing | Impliciet via RTT-schatting | Expliciet 32-bit timestamp (media-eenheden) |
+| Retransmissie | Altijd | Nooit — te laat frame is waardeloos |
+| Congestion control | Ja (AIMD) | Nee — draait op UDP |
+| Multicast | Nee | Ja |
 
-**Ontwerplogica van het verschil:**
+**Video downloaden (niet streamen):** TCP is de correcte keuze. Een download vereist alle bytes — een ontbrekend GOP maakt het bestand ondecodeerbaar. RTP's verlies-tolerantie is een feature voor live media, niet voor stored content.
 
-TCP is een *byte-stream*: elke byte telt. 32-bit geeft ruimte voor lange sessies (bij 1 Gbps duurt wraparound: 2^32 bytes / 125 MB/s ≈ 34 seconden — vandaar ook PAWS-bescherming). RTP is ontworpen voor *realtime media*. De cursustekst: *"bij video of audio is retransmissie vaak niet handig. Als een videoframe te laat aankomt, dan is het al waardeloos."* Packets tellen volstaat voor verliesdetectie. De 32-bit timestamp geeft het exacte afspeelmoment aan in media-eenheden (b.v. 90 kHz klok voor video), wat een bytepositie niet uitdrukt. 16-bit voor sequencenummers is voldoende voor korte vensters in real-time applicaties.
-
-**RTP versus TCP voor video-download (niet streamen)**
-
-TCP is de betere keuze:
-- RTP biedt geen garanties voor volledige bestandsoverdracht; packets die verloren gaan worden niet hertransmitteerd.
-- Een videobestandsdownload vereist **alle bytes**, want een ontbrekend GOP (Group of Pictures) maakt het bestand onbruikbaar of ondecodeerbaar.
-- TCP's betrouwbare, geordende byte-stream is de architectureel correcte keuze voor file transfers.
-- RTP's tolerantie voor verlies is een feature voor live media, niet voor stored-content delivery.
-
-**Congestieprobleem van high-volume RTP**
-
-RTP draait bovenop UDP. UDP heeft geen congestion control. Bij hoge belasting:
-- **Unfairness (TCP-starvation)**: TCP-flows detecteren congestie (via verlies of ECN) en halveren hun congestion window (AIMD). RTP/UDP zendt aan constante rate. Op een gedeelde link krijgen TCP-flows structureel minder bandbreedte dan RTP-flows.
-- **Congestiecollaps**: als al het RTP-verkeer gedropt wordt door volle queues en er geen snelheidsaanpassing plaatsvindt, worden voortdurend nutteloze packets verstuurd. Dit is precies de collapse die TCP-congestiecontrole wil vermijden.
-- **Geen ACK-clock**: TCP's self-clocking mechanisme smootht de injectiesnelheid automatisch op basis van de bottleneck. RTP mist dit en kan burst-gedrag veroorzaken die routerqueues instantaan vult.
+**High-volume RTP congestieprobleem:**
+- **TCP-starvation:** TCP halveert bij verlies (AIMD); RTP/UDP zendt constant → TCP krijgt structureel minder bandbreedte
+- **Congestiecollaps:** RTP heeft geen feedback-loop → voortdurend nutteloze packets bij volle queues
+- **Geen ACK-clock:** TCP's self-clocking smootht injectie op basis van bottleneck; RTP mist dit → burst-gedrag
 
 ---
 
-### 2. Sliding Window Protocols in extreme netwerkomgevingen
+### 2.2 Sliding Windows: Formules en Toepassing
 
-**Wiskundige evaluatie over een satellietverbinding (RTT = 2600 ms, packetgrootte = 1700 bytes)**
+**Kernformules:**
+```
+a = propagatievertraging(één richting) / transmissietijd = (RTT/2) / T_trans
+T_trans = (packet_grootte × 8) / linksnelheid
 
-Basisformule voor efficiëntie:
-- a = propagatievertraging (één richting) / transmissietijd = (RTT/2) / T_trans
+Stop-and-Wait:    η = 1 / (1 + 2a)
+Go-Back-N:        η = min(W / (1 + 2a), 1)     vereist: W ≥ 1 + 2a voor η = 100%
+Selective Repeat: η = min(W / (1 + 2a), 1)     vereist: W ≥ 1 + 2a voor η = 100%
+```
 
-**Stop-and-Wait maximale throughput**
+**Wanneer Stop-and-Wait efficiënt is:** als a ≈ 0, d.w.z. het bandwidth-delay product < één packetgrootte.
 
-Stel een linksnelheid van 10 Mbps:
-- Transmissietijd: T_trans = (1700 × 8) / (10 × 10^6) = 13.600 / 10.000.000 = **1,36 ms**
-- Propagatievertraging: RTT/2 = 1300 ms
-- a = 1300 / 1,36 ≈ **956**
-- Efficiëntie Stop-and-Wait: η = 1 / (1 + 2a) = 1 / (1 + 1912) ≈ **0,052%**
-- Maximale throughput: 0,00052 × 10 Mbps ≈ **5,2 kbps**
-
-Dit is catastrofaal: de zender zendt 1 packet van 1,36 ms, en wacht vervolgens 2600 ms op de ACK.
-
-**Vergelijkingstabel voor de drie protocollen:**
-
-| Protocol | Vereist venster voor η = 100% | η als W te klein | η formule |
+| Medium | a-waarde | S&W efficiëntie | Motivatie |
 |---|---|---|---|
-| Stop-and-Wait | W = 1; werkt enkel als a << 1 | 1 / (1 + 2a) ≈ 0,052% | 1 / (1 + 2a) |
-| Go-Back-N | W ≥ 1 + 2a = 1913 | W / (1 + 2a) | min(W/(1+2a), 1) |
-| Selective Repeat | W ≥ 1 + 2a = 1913 | W / (1 + 2a) | min(W/(1+2a), 1) |
+| GEO-satelliet (RTT 2600 ms, 10 Mbps, 1700 B) | ~956 | 0,052% | Catastrofaal — venster van 1913 packets nodig |
+| LoRa SF12 (RTT 134 μs, 250 bps, 50 B) | ~0,00004 | 99,99% | T_trans >> T_prop → S&W optimaal |
+| Serieel 9600 bps over 1 m kabel | ~0 | ~100% | T_trans = 1,42 s vs T_prop = 5 ns |
 
-Voor 100% efficientie over satelliet met RTT 2600 ms en pakket 1700 bytes: venster van **minstens 1913 packets** nodig.
-
-**Op welk type medium presteert Stop-and-Wait wel efficiënt?**
-
-Stop-and-Wait is efficiënt wanneer **a ≈ 0**, d.w.z. de propagatievertraging is verwaarloosbaar klein vergeleken met de transmissietijd:
-
-- **Trage links over korte afstanden**: een seriële verbinding van 9600 bps over 1 meter kabel. T_trans voor 1700 bytes = (13600 bits) / 9600 bps = 1,42 seconden. Propagatievertraging: 1 m / (2×10^8 m/s) = 5 ns. a ≈ 0 → η ≈ 100%.
-- **LoRa/LPWAN-netwerken**: bij SF12 (250 bps) en een packet van 50 bytes: T_trans = 1,6 s, RTT ≈ 134 μs. a ≈ 0,00008 → η ≈ 99,98%.
-- **Seriële RS-232 verbindingen** met lage baudrate.
-
-Het algemene principe: Stop-and-Wait is efficiënt wanneer het **bandwidth-delay product** (bandbreedte × RTT) kleiner is dan één packetgrootte.
+**Window constraint (Selective Repeat):** venstergrootte ≤ ½ van de sequencenummerrange. Bij grotere vensters kunnen retransmissies na ACK-verlies niet onderscheiden worden van nieuwe packets met hetzelfde nummer.
 
 ---
 
-### 3. TCP Flow Control, Congestie en ACK Clock
+### 2.3 TCP Flow Control vs Go-Back-N vs Selective Repeat
 
-**Vergelijking TCP Flow Control met Go-Back-N**
+| Eigenschap | TCP | Go-Back-N | Selective Repeat |
+|---|---|---|---|
+| Venstereenheid | Bytes (dynamisch) | Packets (vast N) | Packets (vast N) |
+| Vensteradvertentie | Ontvanger adverteert vrije buffer (WIN-veld) | Protocol-parameter | Protocol-parameter |
+| Ontvanger buffert out-of-order | Ja (+ SACK) | Nee — verwerpt | Ja |
+| Retransmissie bij verlies | Enkel gaten (met SACK) | Verloren packet **+ alle volgende** | Enkel verloren packet |
+| ACK-type | Cumulatief + optioneel SACK | Puur cumulatief | Individueel per packet |
 
-| Eigenschap | TCP Flow Control | Go-Back-N |
+**Window probe:** als ontvanger WIN=0 adverteert (buffer vol), kan het window-update ACK verloren gaan → deadlock. De zender stuurt periodiek een tiny probe om de ontvanger te dwingen zijn window opnieuw te adverteren.
+
+**usable window = min(rwnd, cwnd)** — flow control beschermt de eindhost, congestion control beschermt het netwerk.
+
+---
+
+### 2.4 ACK Clock
+
+```
+Zender (1 Gbps) ──► Bottleneck (1 Mbps) ──► Ontvanger
+```
+
+1. Zender burst packets → bottleneck spaceert ze uit in de tijd
+2. Ontvanger stuurt ACKs met dezelfde spacing als bottleneck
+3. Zender stuurt nieuwe packets op ritme van inkomende ACKs → niet sneller dan bottleneck
+
+Resultaat: zelfregulerende pace-matching zonder expliciete terugkoppeling over netwerktopologie. Dit is TCP's "self-clocking".
+
+---
+
+### 2.5 Nagle + Delayed ACKs: Interactieprobleem
+
+**Delayed ACKs:** ontvanger wacht ≤200 ms op return data voor piggybacking alvorens ACK te sturen.
+**Nagle:** zolang er onbevestigd segment onderweg is, buffer kleine data tot volledig segment OF tot ACK terugkomt.
+
+**Het probleem:**
+```
+Client stuurt klein request → Nagle: "wacht op ACK"
+Server ontvangt request → Delayed ACK: "wacht 200ms op return data"
+→ Systematische 200ms latency per kleine interactie
+```
+
+Geen permanente deadlock (timer loopt af), maar onaanvaardbaar voor interactieve apps (SSH, games).
+
+**Oplossingen:** TCP_NODELAY (disable Nagle), TCP_QUICKACK (disable Delayed ACKs). QUIC/HTTP2 vermijden dit structureel.
+
+**Tinygram syndrome:** 1 byte data → 41 bytes header overhead (IP 20 + TCP 20 + 1 byte). Nagle lost dit op door kleine data te bufferen.
+
+**Silly Window Syndrome (receiver-zijde):** app leest 1 byte per keer → ontvanger adverteert steeds tiny windows → zender stuurt tiny segments. Clarke's algoritme: ontvanger wacht met window-update tot hij een volledige MSS of halve buffer kan accepteren.
+
+---
+
+### 2.6 TCP Tahoe vs Reno
+
+| Fase | Tahoe | Reno |
 |---|---|---|
-| Venstereenheid | Bytes (dynamisch, door ontvanger geadverteerd) | Packets (maximaal N, vast per protocol) |
-| Vensteradvertentie | Ontvanger stuurt `WIN`-veld (vrije bufferruimte) | Venstergrootte is protocol-parameter |
-| Retransmissie bij verlies | Timeout of 3 duplicate ACKs → retransmit ontbrekende bytes (met SACK: selectief) | Timeout → retransmit verloren packet **en alle volgende** nog niet bevestigde packets |
-| Ontvanger buffert out-of-order? | Ja, gebufferd en met SACK bevestigd | Nee — verworpen, venster van grootte 1 aan ontvangerzijde |
-| ACK-type | Cumulatief (+ optioneel SACK) | Puur cumulatief |
+| Slow start | cwnd verdubbelt per RTT tot ssthresh | Identiek |
+| Congestion avoidance | cwnd +1 MSS per RTT (lineair) | Identiek |
+| Verlies (timeout) | cwnd → 1, ssthresh = ½ vorig cwnd, herstart slow start | Identiek |
+| Verlies (3 dup ACKs) | Zelfde als timeout: cwnd → 1 | **Fast Recovery:** cwnd → ½, blijf in congestion avoidance |
 
-**Algoritmisch verschil bij hertransmissie:**
+Reno herstelt veel sneller bij packet loss door niet volledig te resetten.
 
-Go-Back-N: bij verlies van packet k worden packets k, k+1, k+2, ... tot k+N-1 **allemaal opnieuw gestuurd**, ook al zijn k+1, k+2, ... al correct aangekomen bij de ontvanger.
+**SACK (Selective ACK):** ontvanger specificeert welke byte-ranges al ontvangen zijn → zender retransmit enkel gaten. Backwards-compatible via TCP Options.
 
-TCP zonder SACK: vergelijkbaar — retransmit vanaf het laatste cumulatief bevestigde punt.
-
-TCP met SACK: de ontvanger geeft aan welke ranges al ontvangen zijn. De zender retransmit enkel de specifieke gaten. Veel efficiënter bij meerdere verliezen per venster.
-
-**ACK Clock: mechanisme voor heterogene netwerken**
-
-De cursustekst: *"nieuwe data wordt alleen het netwerk ingestuurd aan het tempo waarop ACKs terugkeren. ACKs keren terug aan het tempo waarop de bottlenecklink data kan verwerken."*
-
-Werking bij een snelle → trage link overgang:
-
-```
-Zender (1 Gbps) ──────► Trage bottleneck (1 Mbps) ──────► Ontvanger
-                            ↑ packets worden hier
-                              uniform uitgesmeerd
-```
-
-1. Zender injecteert een burst packets op de snelle link.
-2. De trage bottleneck spaceert packets uit in de tijd (pacing door beperkte bandbreedte).
-3. Packets arriveren bij de ontvanger uniform gespreid.
-4. De ontvanger stuurt ACKs terug — ook uniform gespreid.
-5. ACKs reizen snel terug naar de zender, maar arriveren met dezelfde spacing als de bottleneck.
-6. De zender stuurt nieuwe packets op het ritme van inkomende ACKs: niet sneller dan de bottleneck.
-
-**Resultaat**: zelfregulerende pace-matching zonder expliciete terugkoppeling over netwerktopologie. Routerbuffers worden niet systematisch overbelast. Dit is de basis van TCP's "self-clocking" gedrag.
+**ECN vs RED deployment:** ECN vereist support op routers + beide endpoints. RED draait enkel op routers → daadwerkelijk gedeployed. Hughes-punt: RED is wat echt gebruikt wordt.
 
 ---
 
-### 4. Interactie Delayed ACKs en Nagle's Algorithm
+### 2.7 QUIC
 
-**Delayed Acknowledgements:**
-De ontvanger wacht tot 200 ms (of tot return data voor piggybacking) alvorens een ACK te sturen. Doel: minder kleine controlepakketten.
+QUIC is een modern transport protocol bovenop **UDP in user space**.
 
-**Nagle's Algorithm:**
-Zolang er een onbevestigd segment onderweg is, worden nieuwe kleine data gebufferd tot genoeg data voor een volledig segment verzameld is, of tot de ACK terugkomt. Doel: tinygram syndrome vermijden.
+| Eigenschap | TCP | QUIC |
+|---|---|---|
+| Encryptie | Optioneel (TLS apart) | **Verplicht** (TLS ingebouwd) |
+| Connection setup | 1-3 RTT (TCP + TLS) | **0-1 RTT** |
+| Head-of-line blocking | Ja — één verloren packet blokkeert alles | **Nee** — onafhankelijke streams |
+| Connection migration | Nee — gebonden aan IP/poort | **Ja** — overleeft WiFi→4G switch |
+| Implementatie | OS kernel | User space → snellere updates |
 
-**De deadlock/degradatie:**
+Waarom UDP eronder: middleboxes/NAT begrijpen UDP; user-space vermijdt OS-kernel ossificatie (TCP-wijzigingen vereisen OS-updates overal).
 
-```
-Stap 1: Client stuurt klein request (< 1 MSS)
-        → Nagle: "Er is nu een uitstaand onbevestigd segment. Buffer nieuwe data."
+**QUIC heeft wél congestion control** (typisch CUBIC), conceptueel vergelijkbaar met Reno/Tahoe maar per-connectie en ontkoppeld van kernel TCP.
 
-Stap 2: Server ontvangt request
-        → Delayed ACK: "Wacht max 200ms op return data om de ACK te piggybacken."
-
-Stap 3: Server heeft klein response, maar wacht ook:
-        → Server's Nagle: "Wacht op ACK van client (als server ook piggybacking doet)"
-
-Resultaat:
-- Client wacht op ACK van server (Nagle blokkering)
-- Server wacht 200ms timer (Delayed ACK)
-→ 200ms vertraging per kleine interactie, systematisch
-```
-
-Dit is geen permanente deadlock (de 200ms-timer loopt af), maar veroorzaakt **systematische 200ms-latency** bij elke kleine interactie. Voor interactieve toepassingen (SSH, games, HTTP/1.x met kleine requests) is dit onaanvaardbaar.
-
-**Oplossingen:**
-- `TCP_NODELAY`: disablet Nagle aan de zenderkant (Nagle's algorithm uitschakelen).
-- `TCP_QUICKACK`: disablet Delayed ACKs aan de ontvangerkant.
-- Modern: HTTP/2 en QUIC vermijden dit structureel via betere stream multiplexing.
+QUIC is **geen** RTP-vervanging: geen unreliable mode voor verlies-tolerante realtime media.
 
 ---
 
-## Deel 3 — Network Layer (Laag 3)
+### 2.8 Congestion Notificatie
 
-### 1. IPv4 Fragmentation versus Path MTU Discovery
+| Mechanisme | Werking | Overhead | Snelheid | Deployment |
+|---|---|---|---|---|
+| **Choke Packets** | Router stuurt apart packet naar zender | Hoog — extra packets in overbelast netwerk | Snel (1 RTT) | Zender only |
+| **ECN** | Router markeert bit in bestaand packet; ontvanger echo't via ECE | Geen — hergebruikt bestaande packets | Medium (~1 RTT via ontvanger) | Routers + beide endpoints |
+| **RED** | Router dropt packets probabilistisch vóór queue vol is | Negatief — nutteloze hertransmissies | Snel — TCP interpreteert verlies direct | **Routers only** → daadwerkelijk gedeployed |
 
-**Fundamentele incompatibiliteit via de DF-bit**
+RED: drop-probability stijgt met gemiddelde queue-lengte. Zware zenders hebben meer packets in queue → worden proportioneel vaker getroffen → eerlijk.
 
-De DF-bit (Don't Fragment) in de IPv4-header bepaalt het gedrag van routers bij te grote packets:
+---
+
+## 3 — Network Layer
+
+### 3.1 IPv4 Fragmentatie vs Path MTU Discovery
+
+Het DF-bit bepaalt het fundamentele gedrag bij MTU-mismatch:
 
 | DF-bit | Routergedrag bij te groot packet | Feedback aan zender |
 |---|---|---|
-| DF = 0 (fragmentation aan) | Router splitst packet stilzwijgend op | **Geen** — zender leert nooit de werkelijke path MTU |
-| DF = 1 (PMTUD aan) | Router dropt packet en stuurt ICMP terug | **Ja** — ICMP Destination Unreachable (Type 3, Code 4) |
+| DF = 0 | Router splitst packet stilzwijgend | Geen — zender leert path MTU nooit |
+| DF = 1 (PMTUD) | Router dropt packet, stuurt ICMP Type 3 Code 4 | Ja — met bottleneck-MTU |
 
-Ze zijn incompatibel omdat ze tegengestelde aannames maken: fragmentation *verbergt* de MTU-mismatch voor de zender, PMTUD *onthult* haar.
+Ze zijn **incompatibel**: fragmentatie verbergt de MTU-mismatch, PMTUD onthult haar. Je kunt niet tegelijk fragmenteren en de MTU ontdekken.
 
-**Expliciete rol van ICMP Destination Unreachable**
+**PMTUD Black Hole:** firewalls die ICMP blokkeren → zender ontvangt nooit MTU-info → verbinding "hangt" (SYN-ACK lukt, data te groot, geen foutmelding). Oplossing: RFC 4821 (Packetization Layer PMTUD — probeert geleidelijk kleinere segmenten via TCP zonder ICMP-afhankelijkheid).
 
-ICMP Destination Unreachable (Type 3, Code 4 = "Fragmentation Needed and DF bit is set") is het **signaalkanaal** van PMTUD:
-- De router dropt het packet dat DF = 1 heeft maar te groot is.
-- De router stuurt ICMP Type 3/Code 4 terug naar de bronhost, inclusief de MTU van de bottleneck-link.
-- De bronhost verlaagt zijn packetgrootte tot onder die MTU en herverzendt.
-- Dit convergeert totdat de zender de minimale MTU langs het hele pad kent.
+**Fragmentatie vs segmentatie (examenvalkuil):**
 
-**PMTUD Black Hole:** als firewalls ICMP blokkeren (een veel voorkomende misconfiguratie), ontvangt de zender nooit de MTU-informatie. De verbinding "hangt": grote packets worden gedropt maar de zender weet niet waarom. Oplossing: RFC 4821 (Packetization Layer PMTUD) detecteert dit via TCP-gedrag zonder ICMP.
+- Fragmentatie (netwerklaag): router splitst te groot packet → reassembly bij **bestemming**, niet bij volgende router
+- Segmentatie (transportlaag): TCP verdeelt byte-stream in segments <= MSS **voor** verzending
 
-**Architecturale aanpassing voor compatibiliteit**
-
-Een "Fragment + Notify" schema: de router fragmenteert het packet (backwards-compatibel) EN stuurt een ICMP-informatiegericht bericht terug.
-
-Dit is **niet efficiënt** om de volgende redenen:
-- De fragmentatie is al gebeurd: voor korte sessies convergeert de oplossing nooit.
-- Extra ICMP-storm bij drukke links.
-- Routers moeten state bijhouden over welk bronpad al een ICMP ontving (anders: herhaalberichten).
-- IPv6 lost dit principiëler op: fragmentatie door routers is verboden; PMTUD is verplicht.
+**IPv6:** fragmentatie door routers is **verboden**; PMTUD is verplicht. Dit vereenvoudigt routers (geen reassembly-state nodig) en maakt forwarding sneller.
 
 ---
 
-### 2. Congestion Notificatie: Vergelijkingstabel
+### 3.2 IPv6 SLAAC en EUI-64 Privacy
 
-| Notificatie mechanisme | Werking | Snelheid van feedback | Extra Netwerk Overhead | Efficiëntie bij snelle zenders |
-|---|---|---|---|---|
-| **Choke Packets** | Router genereert een apart controlpacket richting de zender wanneer congestie gedetecteerd wordt | Traag — volledige RTT + verwerking; zender reageert pas na terugkomst choke packet | Hoog — extra packets in het al overbelaste netwerk | Laag — één choke packet per flow; zender ontvangt geen continuus signaal |
-| **Explicit Congestion Notification (ECN)** | Router zet een markeerbit in een bestaand doorgaand packet; ontvanger echo't dit via TCP ECE-bit terug; zender reduceert snelheid | Iets trager dan choke — markering gaat eerst naar ontvanger, dan via ACK terug; ±1 RTT meer | Laag — enkel een bit zetten; geen extra packets | Goed — signaal per flow, werkt proportioneel |
-| **Random Early Detection (RED)** | Router dropt packets willekeurig al vóór de queue vol is, zodra gemiddelde queuelength boven drempel stijgt | Snel — drops zijn onmiddellijk; TCP interpreteert verlies direct | Negatief effect — nutteloze hertransmissies van gedropt verkeer | Hoog — snelle senders hebben meer packets in de queue en worden proportioneel vaker getroffen |
+SLAAC leidt interface-ID af uit MAC-adres via EUI-64: MAC `00:1A:2B:3C:4D:5E` → insert `FFFE`, flip U/L-bit → `021A:2BFF:FE3C:4D5E`.
+
+**Privacy-problemen:**
+
+1. **Permanente tracking:** MAC is hardware-permanent → zelfde interface-ID op elk netwerk → traceerbaar over locaties
+2. **Adresvoorspelbaarheid:** kennis van MAC → IPv6-adres voorspelbaar op elk netwerk
+3. **OUI-lekkage:** eerste 24 bits MAC = fabrikant → toesteltype onthuld
+
+**Tegenmaatregelen:** RFC 7217 (opake, stabiele adressen per netwerk — niet afleidbaar), RFC 4941 (tijdelijke privacy-adressen — roteren periodiek).
+
+**SLAAC vs DHCPv6:** SLAAC lekt meer (host leidt adres af uit hardware, geen centrale controle). DHCPv6 kan randomiseren, houdt logs, past in managed netwerk. SLAAC past bij IoT/always-on devices die zonder server moeten autoconfigureren.
+
+**Herkenning:** een adres met `ff:fe` in het midden is de EUI-64 fingerprint → waarschijnlijk SLAAC.
 
 ---
 
-### 3. IoT en de IP Stack
+### 3.3 IPv6: Geen Header Checksum — Waarom?
 
-**Technologische barrières van IPv4 en IPv6 voor IEEE 802.15.4**
+**Redenering (niet triviaal):** error detection gebeurt al op twee andere lagen:
 
-De cursustekst: *"resource constrained: weinig geheugen, opslag en rekenkracht; energy constrained: nodes moeten lang op batterij werken; unreliable: uitval van nodes is normaal."*
+- **Link-layer:** Ethernet FCS, 802.15.4 CRC — detecteert bitfouten per hop
+- **Transport-layer:** TCP/UDP checksum — end-to-end integriteitscontrole
 
-IEEE 802.15.4 maximale framegrootte: 127 bytes.
+Een IPv6 header checksum zou **redundant** zijn. Maar het cruciale argument is **performantie**: een router decrementeert de hop limit bij elk packet. Met een header checksum zou herberekening nodig zijn bij **elke hop** → vertraagt forwarding op high-speed routers die miljoenen packets/seconde verwerken. IPv4 heeft dit probleem wel: de header checksum moet per hop opnieuw berekend worden vanwege het TTL-veld.
 
-| Barrière | IPv4 | IPv6 |
+---
+
+### 3.4 IoT en de IP Stack (6LoWPAN)
+
+IEEE 802.15.4 max frame: **127 bytes**. Dat maakt standaard IP-headers problematisch:
+
+| Barriere | IPv4 | IPv6 |
 |---|---|---|
-| Header overhead | 20 bytes minimaal (variabel tot 60 bytes) | 40 bytes vast — al een derde van het totale frame |
-| Adresruimte | 32-bit — uitgeput, vereist NAT; NAT breekt directe M2M communicatie | 128-bit — voldoende voor elk sensorobject op aarde |
-| Autoconfiguratie | DHCP vereist server | SLAAC — nodes configureren zich zelfstandig |
-| Fragmentatie | Kan door routers (duur); fragmentatie van 127-byte frames verergert overhead | Routers fragmenteren niet (PMTUD verplicht); minimale MTU 1280 bytes (probleem voor 802.15.4!) |
-| NAT-compatibiliteit | Slechte NAT-interactie voor IoT push-verkeer | Geen NAT nodig → directe end-to-end communicatie |
+| Header | 20-60 bytes | 40 bytes vast (1/3 van frame!) |
+| Adresruimte | 32-bit, uitgeput, vereist NAT | 128-bit, voldoende |
+| Autoconfiguratie | DHCP (server nodig) | SLAAC (serverloos) |
+| Fragmentatie | Door routers (duur) | Verboden door routers; min MTU 1280 bytes |
+| End-to-end | NAT breekt directe M2M | Geen NAT nodig |
 
-**Welk protocol heeft de overhand?**
+**Winnaar: IPv6**, maar niet ongewijzigd. **6LoWPAN** is de adaptielaag:
 
-IPv6 via **6LoWPAN** (IPv6 over Low-Power Wireless Personal Area Networks, RFC 4944) wint op de volgende gronden:
-- 6LoWPAN comprimeert de 40-byte IPv6-header naar typisch 2-3 bytes voor lokaal verkeer.
-- Fragmentatie van grote IPv6-packets over meerdere 802.15.4-frames wordt door 6LoWPAN afgehandeld.
-- SLAAC maakt server-loze netwerken mogelijk.
-- De IETF heeft IoT-specifieke protocollen (CoAP, ROLL) ontworpen bovenop IPv6/6LoWPAN.
+- Comprimeert 40-byte IPv6-header naar **2-3 bytes** (link-local prefix en EUI-64 interface-ID zijn afleidbaar → niet meesturen)
+- Handelt fragmentatie over meerdere 802.15.4-frames af (eigen fragmentatieheader, niet IPv6)
+- SLAAC maakt serverloze mesh-netwerken mogelijk
 
----
-
-### 4. IPv6 SLAAC en Privacy-inbreuk via EUI-64
-
-Bij standaard SLAAC leidt een node zijn 64-bit Interface Identifier af uit zijn MAC-adres (EUI-64 formaat):
-- De 48-bit MAC `00:1A:2B:3C:4D:5E` wordt `02:1A:2B:FF:FE:3C:4D:5E` (FFFE ingevoegd, U/L-bit omgedraaid).
-- Het resulterende IPv6-adres: `prefix::021A:2BFF:FE3C:4D5E`.
-
-**Privacy-inbreuk:**
-1. **Permanente tracking**: het MAC-adres is hardware-permanent. De interface identifier blijft constant, ook als de node van netwerk wisselt (b.v. thuis → kantoor → openbaar wifi). Een tracker die het IPv6-adres ooit zag, kan het toestel herkennen op elk netwerk.
-2. **Adresvoorspelbaarheid**: een aanvaller die het MAC-adres kent (via fysieke toegang, ARP-sniffing, of eerder Bluetooth-scanning) kan het IPv6-adres van het toestel op elk netwerk voorspellen en gerichte aanvallen of fingerprinting uitvoeren.
-3. **OUI-informatie**: de eerste 24 bits van een MAC identificeren de fabrikant (Organizationally Unique Identifier). Dit verraadt het toesteltype, wat aanvallers helpt bij het selecteren van exploits.
-
-**Tegenmaatregelen:** RFC 7217 (stabiele maar opake adressen) en RFC 4941 (tijdelijke privacyadressen die regelmatig veranderen) pakken dit aan, maar vereisen extra implementatiewerk op resource-arme IoT-devices.
+**Waarom niet gewoon IPv4 met kleinere header?** NAT breekt machine-to-machine communicatie, DHCP vereist infrastructuur, en het adresruimteprobleem maakt IPv4 onhoudbaar voor miljarden IoT-devices.
 
 ---
 
-### 5. AODV versus OSPF in ad-hoc netwerken + Count-to-Infinity
+### 3.5 AODV vs OSPF + Count-to-Infinity
 
-**Waarom OSPF slecht presteert in ad-hoc topologieën**
+| | OSPF (proactief, link-state) | AODV (reactief, distance-vector) |
+|---|---|---|
+| Routes | Continu onderhouden, volledige topologie | On-demand, enkel bij actieve communicatie |
+| Overhead bij geen verkeer | Hoog — constante flooding van link-state info | **Geen** — geen control traffic |
+| Geheugen per router | O(N) — volledig topologiebeeld | Minimaal — enkel actieve routes |
+| Geschikt voor | Stabiele netwerken (campus, enterprise) | Dynamische ad-hoc (mobiel, sensor mesh) |
 
-OSPF is een *proactief* link-state protocol: alle routers floden voortdurend link-state-informatie om een consistente topologieview te onderhouden. In ad-hoc netwerken:
-- Topologie verandert constant (nodes bewegen, batterijen raken leeg).
-- Elke topologiewijziging triggert een nieuwe flooding-cyclus.
-- **Overhead**: voor N nodes met snelle veranderingen wordt het netwerk gedomineerd door control traffic in plaats van applicatiedata.
-- **Geheugen**: een volledig topologiebeel vereist O(N) state per router — onaanvaardbaar voor resource-arme ad-hoc nodes.
+**Count-to-Infinity (Distance Vector):**
+"Good news travels fast, bad news travels slowly." Bij link-uitval adverteert buurnode de oude route → andere node adopteert die + 1 → lus → afstanden stijgen langzaam richting oneindig.
 
-**Waarom AODV superieur presteert**
+Mitigaties: split horizon, poison reverse, maximum metric (RIP: 16), hold-down timers — maar geen van deze lost het volledig op.
 
-De cursustekst: *"AODV is reactief: routes worden pas gezocht wanneer iemand effectief data wil sturen."*
-
-- AODV onderhoud **geen proactieve routing tables**. Geen control traffic als er geen communicatie is.
-- Routes worden on-demand ontdekt via ROUTE_REQUEST flooding (met TTL-beperking).
-- Nodes met bekende routes sturen ROUTE_REPLY terug; onderweg wordt de route opgeslagen.
-- **Adaptiviteit**: als een route uitvalt, wordt een nieuwe ROUTE_REQUEST gestart. Oude routes worden via route maintenance verwijderd.
-
-**Hoe AODV het Count-to-Infinity-probleem ondervat**
-
-Bij klassiek Distance Vector (Bellman-Ford) kennen routers geen volledig padoverzicht. Een lus in de redenering (B denkt via C, C denkt via B) leidt tot langzaam oplopende afstanden.
-
-AODV's aanpak: elke ROUTE_REPLY en ROUTE_REQUEST draagt een **destination sequence number** (geslagen door de bestemmingsnode zelf). Een route met een *hogere* sequencenummer is per definitie verser.
-
-- Als een route uitvalt, verhoogt de destination zijn sequencenummer en stuurt een route-error.
-- Nodes die een verouderde route (lager sequencenummer) zien, verwerpen die onmiddellijk.
-- Een count-to-infinity lus produceert routes met oude sequencenummers → worden snel verworpen.
-
-**Beperking**: de cursustekst erkent dat *"lange time-outs nog altijd lastig blijven"* bij gelijktijdige storingen. AODV lost het fundamentele probleem beter op dan Bellman-Ford, maar is niet perfect bij snelle topologiewijzigingen.
+**AODV's oplossing:** destination sequence numbers. Route met **hoger** sequencenummer = verser. Bij uitval: destination verhoogt sequencenummer, stuurt RERR. Nodes met verouderde route (lager nummer) verwerpen die **onmiddellijk** → geen count-to-infinity lus mogelijk.
 
 ---
 
-### 6. Adresruimte en Routing Tables
+### 3.6 OSPF vs BGP: Intra-AS vs Inter-AS
 
-**Netwerktopologie (192.168.22.0/24)**
+| | OSPF | BGP |
+|---|---|---|
+| Scope | Binnen een AS | Tussen ASes (ISPs) |
+| Algoritme | Link-state (Dijkstra) | Path-vector met beleid |
+| Kennis per router | Volledige area-topologie | Border routers: reachability + policy |
+| Schaal | Niet voor country-scale | Ontworpen voor global Internet |
+| Routeringskriterium | Naief shortest-path (kost) | Policy: kosten, bandbreedte, welke ASes vermijden |
+| Transport | Direct op IP (protocol 89) | **TCP** (poort 179) |
 
-Subnetindeling voor enterprise-netwerk:
+**Waarom OSPF connectionless:** flood link-state advertisements naar alle buren, broadcast-stijl. TCP-sessie per buurnode zou zwaar en zinloos zijn voor flooding. (Technisch: OSPF draait direct op IP protocol 89, niet letterlijk op UDP — maar het is connectionless in geest.)
 
-| Subnet | CIDR | Beschrijving | Bruikbare adressen |
-|---|---|---|---|
-| LAN A | 192.168.22.0/25 | PC-A, Switch 1, Fileserver | .1 – .126 |
-| Inter-router link | 192.168.22.128/30 | R1 ↔ R2 point-to-point | .129 – .130 |
-| LAN B | 192.168.22.192/26 | Webserver, Switch 2 | .193 – .254 |
+**Waarom BGP over TCP:** inter-AS sessies zijn **langlevend** (dagen/weken), moeten betrouwbaar zijn (geen verloren routing-updates tussen ISPs). TCP biedt betrouwbaarheid + ordered delivery + flow control. Een verloren BGP-update kan een heel AS onbereikbaar maken.
 
-**IP-adrestoewijzing:**
+**Peering vs Transit (examenfavoriet):** peering is het gratis uitwisselen van verkeer tussen twee ASes, typisch via een IXP. Peering is **niet transitief**: als A peert met B en B peert met C, kan A niet gratis via B naar C. Daarvoor is transit (betaald) nodig.
 
-| Host/Interface | IP-adres | Subnetmask | Default Gateway |
-|---|---|---|---|
-| PC-A | 192.168.22.10 | 255.255.255.128 (/25) | 192.168.22.1 |
-| Fileserver | 192.168.22.20 | 255.255.255.128 (/25) | 192.168.22.1 |
-| Router 1 — eth0 (LAN A) | 192.168.22.1 | 255.255.255.128 | — |
-| Router 1 — eth1 (WAN link) | 192.168.22.129 | 255.255.255.252 | — |
-| Router 2 — eth0 (WAN link) | 192.168.22.130 | 255.255.255.252 | — |
-| Router 2 — eth1 (LAN B) | 192.168.22.193 | 255.255.255.192 (/26) | — |
-| Webserver | 192.168.22.200 | 255.255.255.192 | 192.168.22.193 |
+---
 
-**Routing Table van PC-A:**
+### 3.7 Subnetting: Methode + Routing Tables + ARP
+
+**Methode (werkt voor elk masker):**
+```
+1. CIDR /n  -->  eerste n bits = netwerk, rest = host
+2. Netwerkadres       = IP AND masker
+3. Broadcast          = netwerk met alle hostbits = 1
+4. Eerste host        = netwerk + 1
+5. Laatste host       = broadcast - 1
+6. #bruikbare hosts   = 2^(32-n) - 2
+7. Zelfde subnet?     --> (IP_1 AND masker) == (IP_2 AND masker)
+8. Prive (RFC 1918):  10/8, 172.16/12, 192.168/16
+```
+
+**Voorbeeld netwerktopologie (192.168.22.0/24):**
+
+| Subnet | CIDR | Bruikbaar bereik |
+|---|---|---|
+| LAN A | 192.168.22.0/25 | .1 - .126 (126 hosts) |
+| Inter-router | 192.168.22.128/30 | .129 - .130 (2 hosts) |
+| LAN B | 192.168.22.192/26 | .193 - .254 (62 hosts) |
+
+**Routing Table Router 1:**
 
 | Bestemming | Masker | Gateway | Interface |
 |---|---|---|---|
-| 192.168.22.0 | /25 | — (direct) | eth0 |
-| 0.0.0.0 | /0 | 192.168.22.1 | eth0 |
-
-**Routing Table van Router 1:**
-
-| Bestemming | Masker | Gateway | Interface |
-|---|---|---|---|
-| 192.168.22.0 | /25 | — (direct) | eth0 |
-| 192.168.22.128 | /30 | — (direct) | eth1 |
+| 192.168.22.0 | /25 | direct connected | eth0 |
+| 192.168.22.128 | /30 | direct connected | eth1 |
 | 192.168.22.192 | /26 | 192.168.22.130 | eth1 |
 
-**ARP Cache na succesvolle HTTP-request (PC-A → Webserver):**
+**ARP Cache na HTTP-request PC-A (LAN A) naar Webserver (LAN B):**
 
-PC-A stuurt het packet naar zijn default gateway (Router 1), omdat de webserver in een ander subnet zit.
-
-| Host | ARP Cache inhoud |
+| Host | Leert via ARP |
 |---|---|
-| PC-A | 192.168.22.1 → MAC(R1-eth0) |
-| Router 1 | 192.168.22.10 → MAC(PC-A); 192.168.22.130 → MAC(R2-eth0) |
-| Router 2 | 192.168.22.129 → MAC(R1-eth1); 192.168.22.200 → MAC(Webserver) |
-| Webserver | 192.168.22.193 → MAC(R2-eth1) |
+| PC-A | Gateway R1 MAC (enkel!) |
+| R1 | PC-A MAC + R2 MAC |
+| R2 | R1 MAC + Webserver MAC |
+| Webserver | R2 MAC (enkel!) |
 
-**Belangrijk**: PC-A heeft enkel een ARP-entry voor Router 1 (zijn gateway), niet voor de webserver. ARP werkt enkel binnen hetzelfde subnet.
+ARP werkt **enkel binnen hetzelfde subnet** — PC-A kent nooit de MAC van de webserver, enkel die van zijn gateway.
 
 ---
 
-## Deel 4 — Data Link Layer & Physical Layer (Lagen 1–2)
+### 3.8 PDU-analyse bij Multi-hop Routing
 
-### 1. BMAC versus TSMP: Wanneer welk protocol?
+**Kernprincipe — wat verandert per hop en wat niet:**
 
-**Vergelijking per omstandigheid**
+```
+PC-A ---[R1]---[R2]--- Webserver
+```
 
-| Omstandigheid | BMAC (LPL) | TSMP (TDMA) |
+| Veld | Scope | Verandert per hop? |
 |---|---|---|
-| Verkeerspatroon | Onvoorspelbaar, event-driven, bursty | Voorspelbaar, periodiek, geregeld |
-| Topologie-stabiliteit | Dynamisch (nodes komen en gaan) | Stabiel met bekende deelnemers |
-| Latency-eis | Hoog (onmiddellijke transmissie mogelijk) | Laag (wacht op het juiste tijdslot) |
-| Energie bij weinig verkeer | Goed — nodes slapen lang | Uitstekend — precies op geplande momenten actief |
-| Energie bij veel verkeer | Slecht — lange preamble per packet | Goed — geen preamble nodig |
-| Synchronisatiebehoefte | Geen | Vereist (tijdsmaster aanwezig) |
-| Schaalbaarheid | Goed | Beperkt door slottoewijzing |
+| Src/Dst IP (NSAP) | End-to-end | **Nee** (behalve bij NAT) |
+| Src/Dst MAC | Per link | **Ja** — elk hop heeft nieuwe src/dst MAC via ARP |
+| Src/Dst Poort (TSAP) | End-to-end | **Nee** (behalve bij NAT) |
+| TTL/Hop Limit | Per hop | **Ja** — decrementeert per router |
 
-**BMAC overwint TSMP**: bij event-driven toepassingen (brandalarm, bewegingssensor, sporadische berichten) waar de transmissietijdstip onbekend is en lage latency vereist is.
+**Na NAT:** private IP/poort wordt herschreven naar publiek IP/poort aan de NAT-boundary. De applicatie-payload wordt **niet** herschreven.
 
-**TSMP overwint BMAC**: bij regelmatige sensor-polling (temperatuur elke 5 minuten), wanneer nodes gesynchroniseerd zijn en collisions vermeden moeten worden.
+**Veelgemaakte fouten:**
 
-**Wiskundige afstelling van Preamble Length en Sample Interval in BMAC**
+- Default gateway = IP-adres van router-interface op **jouw** subnet, NIET de switch (switches zijn L2, hebben geen IP-forwarding)
+- Broadcasts kruisen **geen** routers — een router is per definitie een broadcast-domain boundary
+- Een switch leert MAC-adressen maar routeert niet — frames naar onbekende MAC worden geflooded
 
-De fundamentele voorwaarde:
+---
 
+### 3.9 NAT-problemen + Traversal-technieken
+
+NAT herschrijft IP/poort aan de boundary maar **niet** adressen in applicatie-payloads, en blokkeert inkomende verbindingen (geen mapping in de NAT-tabel).
+
+**Protocollen die breken:**
+
+- FTP active mode: client stuurt `PORT 192.168.1.10,p` (prive-IP in payload) → server probeert inbound verbinding → NAT blokkeert
+- SIP/VoIP: IP-adres in SDP-payload → peer belt naar prive-adres → onbereikbaar
+
+**Twee categorieen traversal-technieken:**
+
+| Categorie | Technieken | Principe |
+|---|---|---|
+| Client-geinitieerd | FTP PASV, Gnutella PUSH | Draai de verbindingsrichting om zodat alles outbound is |
+| Relay/helper | STUN, TURN, ALG, UPnP | Externe server ontdekt/relayed mapping, of NAT herschrijft payload |
+
+**Kan een plain router met een publiek IP NAT vervangen?** Nee — het delen van een publiek IP over meerdere hosts vereist adrestranslatie. Zonder NAT-functionaliteit kan een router slechts een host bedienen per publiek IP.
+
+---
+
+### 3.10 Adressering per Laag — Waarom Alle Drie Nodig?
+
+| Laag | Adrestype | Scope | Functie |
+|---|---|---|---|
+| Netwerk (L3) | IP-adres (NSAP) | Logisch, end-to-end | **Routing** tussen netwerken |
+| Data Link (L2) | MAC-adres | Fysiek, next-hop | **Delivery** op de lokale draad/link |
+| Transport (L4) | Poortnummer (TSAP) | End-to-end | **Demultiplexing** naar juiste applicatie |
+
+**Waarom niet alleen IP?** IP-adressen zijn logisch en veranderen niet per hop, maar de link-laag weet niets van IP. Ethernet/WiFi-hardware levert frames af op basis van MAC. ARP vertaalt IP naar MAC **per subnet**. Zonder MAC zou elke NIC elk frame moeten verwerken op IP-niveau → inefficient.
+
+**Waarom niet alleen MAC?** MAC-adressen zijn vlak (geen hierarchie) → niet routeerbaar. IP-adressen zijn hierarchisch (prefix = netwerk) → aggregeerbaar in routing tables. Zonder IP zou elke router een entry nodig hebben voor elk device op het Internet.
+
+**Poortnummers:** zonder poorten kan een host niet onderscheiden of een inkomend packet voor de webserver (80), SSH (22) of DNS (53) is. Poorten zijn het demultiplexing-mechanisme van de transportlaag.
+
+---
+
+### 3.11 Zigbee/BLE Mesh Routing naar IPv6 Gateway
+
+**Scenario:** constrained devices in een mesh moeten sensordata naar een IPv6 gateway (sink) sturen.
+
+**Best fit routing: AODV (reactief)** — low-overhead, on-demand, geen control traffic bij stilte. Maar standaard AODV is ontworpen voor ad-hoc laptops, niet voor energy-constrained sensors.
+
+**Noodzakelijke modificaties:**
+
+- **Energy-aware metric:** kies routes via nodes met meer batterij, niet puur shortest-path
+- **Minder HELLOs:** verminder beaconing-frequentie → langere slaapperiodes
+- **Langere route lifetimes:** vermijd onnodige route-discovery bij stabiele topologie
+
+**Gateway als sink — RPL (DODAG):**
+Voor verkeer dat overwegend naar een gateway stroomt is RPL (Routing Protocol for Low-Power and Lossy Networks) geschikter dan AODV. RPL bouwt een Destination-Oriented Directed Acyclic Graph (DODAG) met de gateway als root. Voordelen: structureel gericht naar de sink, mogelijkheid tot data-aggregatie onderweg, en expliciete ondersteuning voor 6LoWPAN.
+
+**Cross-layer keuze MAC:** AODV/RPL past bij contention-based MACs (CSMA/CA, BMAC) — niet bij TDMA/TSMP die een vaste schedule veronderstellen (zie 4.8).
+
+---
+
+## 4 — Data Link & Physical Layer
+
+### 4.1 CSMA/CA: Hidden/Exposed Terminal + RTS/CTS + NAV
+
+**Hidden Terminal:**
+```
+A ←→ B(AP) ←→ C     (A en C horen elkaar niet)
+A: "kanaal vrij" → zendt | C: "kanaal vrij" → zendt → collision bij B
+```
+**Waarom carrier sense faalt:** A en C luisteren lokaal, maar hun bereik overlapt niet. Het kanaal lijkt vrij voor beiden, terwijl B beide signalen tegelijk ontvangt en geen van beide kan decoderen.
+
+**Exposed Terminal:**
+```
+A ←→ B ←→ C ←→ D    (B zendt naar A; C wil naar D)
+C hoort B → wacht onnodig, terwijl C→D geen collision zou veroorzaken
+```
+**Waarom dit verspilling is:** C's transmissie naar D zou B's ontvangst niet storen (A en D liggen in tegengestelde richtingen), maar carrier sense verbiedt zenden omdat het kanaal "bezet" klinkt.
+
+**CSMA lost geen van beide op** — het luistert enkel lokaal. Wifi kan bovendien niet betrouwbaar collision detecteren tijdens zenden (eigen signaal overheerst) → daarom Collision **Avoidance** i.p.v. Detection.
+
+**NAV (Network Allocation Vector):** virtuele carrier sense. Node leest Duration-veld in 802.11-header → stelt timer in → zendt niet tot timer = 0. Werkt zelfs als je het datasignaal niet hoort — puur op basis van gehoorde controlframes.
+
+**RTS/CTS lost hidden terminal op:**
+```
+1. A → B: RTS (Duration = data + CTS + ACK)
+2. B → all: CTS (Duration = data + ACK) ← C hoort dit!
+3. C stelt NAV → zwijgt
+4. A → B: DATA (collision-vrij)
+5. B → A: ACK
+```
+C hoorde A's RTS misschien niet (hidden), maar hoort B's CTS wel → weet dat kanaal bezet is.
+
+**RTS/CTS lost exposed terminal NIET op** — verergert het zelfs: C hoort B's RTS en stelt NAV onnodig in, waardoor C nog langer wacht dan met enkel carrier sense.
+
+**Wanneer RTS/CTS gebruiken:** enkel voor grote frames. Overhead van 2 extra frames per transmissie is enkel gerechtvaardigd als de kost van een collision op een groot dataframe hoger is dan de RTS/CTS-overhead. Standaard RTS-threshold = 2347 bytes (vaak uitgeschakeld).
+
+---
+
+### 4.2 BMAC vs TSMP: Preamble/Sampling Trade-off + Fusie
+
+| Kenmerk | BMAC (LPL) | TSMP (TDMA + channel hopping) |
+|---|---|---|
+| Verkeer | Onvoorspelbaar, event-driven | Voorspelbaar, periodiek |
+| Topologie | Dynamisch, nodes komen/gaan | Stabiel, bekende deelnemers |
+| Synchronisatie | Geen vereist | Vereist (clockmaster) |
+| Latency | Laag (meteen zenden) | Hoger (wacht op toegewezen slot) |
+| Energie (weinig verkeer) | Goed (radio meestal uit) | Uitstekend (slot = exact geplande wake) |
+| Energie (veel verkeer) | Slecht (lange preamble per packet) | Goed (geen preamble-overhead) |
+| Schaalbaarheid | Goed (gedecentraliseerd) | Beperkt (centrale slottoewijzing) |
+| Grootste energiekost | Preamble-zending | (Re)joining van het netwerk |
+
+**Preamble/Sampling trade-off (kernformule):**
 ```
 Preamble_length ≥ Sample_Interval
 ```
+**Waarom:** de ontvanger samplet periodiek kort het kanaal. De preamble moet minstens zo lang duren als het sample-interval zodat de ontvanger gegarandeerd activiteit detecteert tijdens een sample-moment.
 
-De zender moet een preamble uitzenden die minstens zo lang duurt als het slaapinterval van de ontvanger, zodat de ontvanger gegarandeerd activiteit detecteert tijdens zijn volgende sample.
-
-Bij **extreem lage datarate** (b.v. 1 kbps):
-- Sample interval: T_sample = 500 ms (compromis energie/latency)
-- Preamble length: ≥ 500 ms
-- Preamble in bits: 500 ms × 1000 bps = **500 bits = 62,5 bytes**
-- Elke transmissie kost dus veel meer energie dan de nuttige payload, maar nodes slapen lang.
-
-Bij **extreem hoge datarate** (b.v. 1 Mbps):
-- Sample interval: T_sample = 10 ms (radio sneller actief, minder energiebesparing nodig)
-- Preamble length: ≥ 10 ms
-- Preamble in bits: 10 ms × 1.000.000 bps = **10.000 bits** maar dit is een kleine fractie van de totale datatransmissie.
-- De preamble-overhead is relatief laag bij hoge datarates.
-
-**Optimale keuze**: T_sample is een trade-off tussen:
-- Korter → lagere latency, maar meer energie voor samples.
-- Langer → hogere latency, maar meer energiebesparing.
-
-Energiekosten van zender: E_tx ∝ T_preamble + T_data = T_sample + T_data.
-
-**BMAC + TSMP fusieschema**
-
-```
-Tijdframe structuur:
-|──── TDMA-slots (periodieke data) ────|── LPL-venster ──|
-     ↑ bekende nodes, gesynchroniseerd      ↑ BMAC-stijl samples
-       minimum energie                        voor event-driven data
-```
-
-- Nieuwe nodes joinen via BMAC (luisteren op een TSMP-beacon zonder synchronisatie).
-- Na synchronisatie: schakel over naar TDMA voor geplande slots.
-- LPL-venster naast TDMA: nodes doen korte samples buiten hun geplande slots voor sporadisch verkeer.
-- Frequentiehopping van TSMP blijft actief in beide zones.
-
----
-
-### 2. Collision Domains en Kabellengte
-
-**Achtergrond: waarom bestaat de kabellengtelimiet?**
-
-Classic Ethernet gebruikt **CSMA/CD** (Collision Detection). De minimum framegrootte (64 bytes = 512 bits) is zo gekozen dat de zender nog *bezig is met zenden* wanneer het collision-signaal van het verste punt op de kabel terugkeert:
-
-```
-Vereiste: T_transmissie ≥ 2 × T_propagatie (round-trip)
-Bij 10 Mbps: 512 bits / 10 Mbps = 51,2 μs ≥ 2 × T_prop
-→ Max propagatievertraging: 25,6 μs
-→ Bij signaalsnelheid ≈ 200.000 km/s: max kabellengte ≈ 2560 m
-```
-
-**Fast Ethernet (100 Mbps) met Hubs: limiet verdwijnt NIET**
-
-Hubs zijn elektrische signaalrepeaters. Ze creëren geen nieuwe collision domains — het hele segment blijft één collision domain. Bij 100 Mbps:
-
-```
-512 bits / 100 Mbps = 5,12 μs ≥ 2 × T_prop
-→ Max propagatievertraging: 2,56 μs
-→ Max kabellengte: ~256 m (inclusief hubvertraging: nog korter)
-```
-
-De limiet wordt **strenger**, niet versoepeld. Fast Ethernet met hubs heeft een maximale segmentlengte van ±100m (mede door hub-doorlooptijd). De limiet verdwijnt niet.
-
-**Switches met Full-Duplex bekabeling: limiet verdwijnt WEL**
-
-Switches isoleren collision domains: elke poort is een eigen, onafhankelijk collision domain. Met full-duplex:
-- Zenden en ontvangen verlopen op **afzonderlijke paren** (b.v. bij UTP: paar 1-2 voor TX, paar 3-6 voor RX).
-- Er is geen gedeeld medium meer → **collisions zijn fysiek onmogelijk**.
-- CSMA/CD wordt uitgeschakeld in de NIC-firmware.
-- De kabellengtegrens die voortvloeide uit collision detection verdwijnt volledig.
-
-De enige resterende kabellengtelimiet bij full-duplex switched Ethernet is signaalattentuatie: typisch **100 meter** voor Cat5e UTP (bepaald door signaalsterkte, niet door timing).
-
-| Configuratie | Collision Domain | CSMA/CD nodig | Kabellengtegrens (collision) |
+| Configuratie | Sample-interval | Preamble | Resultaat |
 |---|---|---|---|
-| Classic Ethernet (10 Mbps, hub) | Gedeeld (alle hosts) | Ja | ~2500 m |
-| Fast Ethernet (100 Mbps, hub) | Gedeeld | Ja | ~100–200 m |
-| Switched Ethernet, half-duplex | Per poort | Ja (per poort) | Per poort < 200 m |
-| Switched Ethernet, **full-duplex** | Per poort | **Nee** | **Verdwijnt** (enkel attenuatie) |
+| **Veel verkeer** | Kort | Kort | Lage per-packet overhead, meer sample-energie |
+| **Weinig verkeer** | Lang | Lang | Maximale slaaptijd, dure maar zeldzame zendingen |
+
+**BMAC+TSMP fusie-ontwerp:** gebruik TDMA-slots als backbone voor steady/periodiek verkeer (camera-feeds, temperatuursensoren). Reserveer een LPL-venster voor event-driven/onverwachte berichten en nieuwe nodes. Nieuwe nodes joinen via BMAC (geen schedule nodig), en schakelen over naar TDMA na synchronisatie. Gesynchroniseerde slots voorkomen dat beide regimes botsen.
+
+**Examenvalkuil:** TSMP biedt niet alleen TDMA maar ook **channel hopping** (spreidt interferentierisico over frequenties) en **redundantie** (spatial: andere buur, temporal: ander tijdstip). BMAC biedt QoS-differentiatie niet — TSMP kan meer slots toewijzen aan een camera dan aan een temperatuursensor.
 
 ---
 
-### 3. 802.11 Wi-Fi: Packet Loss als TCP Congestion Signaal
+### 4.3 Hub vs Switch: Architectuur, Collision Domains, Privacy
 
-**Het fundamentele probleem**
+| Aspect | Hub | Switch |
+|---|---|---|
+| Werking | Fysieke repeater, kopieert signaal naar alle poorten | Leert MAC-adressen (MAC table), forwardt per poort |
+| Collision domain | Een gedeeld domain (alle poorten) | Per poort een apart domain |
+| Duplex | Half-duplex (CSMA/CD vereist) | Full-duplex mogelijk (geen collisions) |
+| Bandbreedte | Gedeeld over alle poorten | Dedicated per poort |
+| Privacy | Iedereen ziet al het verkeer | Enkel je eigen unicast-verkeer |
+| Kosten/complexiteit | Goedkoop, geen logica | Duurder, forwarding-logica |
 
-TCP Tahoe en Reno gebruiken **packet loss als impliciet congestiesignaal**: verlies van een segment = congestie → halveer congestion window (AIMD). Dit werkt op bekabelde netwerken omdat verlies bijna uitsluitend door congestie wordt veroorzaakt.
+**Wanneer hub beter dan switch?** Network sniffing, protocol-analyse, lab-onderwijs — je wilt dat alle hosts al het verkeer zien via promiscuous mode. Bij een switch is dit enkel mogelijk met **port mirroring** (SPAN), wat configuratie vereist.
 
-Op een 802.11 WLAN-verbinding zijn er **meerdere oorzaken van packet loss**, zonder dat congestie betrokken is:
-- **Radiointerferentie**: andere WiFi-netwerken op hetzelfde kanaal, magnetrons, Bluetooth.
-- **Hidden terminal-collisions**: twee nodes die elkaar niet horen, botsen op de AP.
-- **Signaalzwakte (fading)**: de client beweegt van de AP weg; packets worden gecorrumpeerd.
-- **MAC-laag retransmissies die uitputten**: 802.11 retransmitteert intern tot 7 keer; als die allemaal falen, ziet de transportlaag één verlies.
+**Privacy-vergelijking over media:**
 
-**Gevolg voor TCP:**
+| Medium | Afluisterbaarheid | Bescherming |
+|---|---|---|
+| Hub Ethernet | Triviaal: promiscuous mode op elke poort | Fysieke toegangscontrole |
+| Switched Ethernet | Moeilijk, maar MAC flooding/spoofing kan switch in hub-modus forceren | Port security, 802.1X |
+| 802.11 WiFi | Inherent sniffable (radiogolven voor iedereen) | Volledig afhankelijk van encryptie (WPA2/3) |
+
+---
+
+### 4.4 Collision Domains en Kabellengte (CSMA/CD)
+
+**Kernvereiste:** CSMA/CD werkt alleen als de zender een collision detecteert **terwijl hij nog zendt**:
 ```
-Scenario: Lichte WiFi-interferentie, netwerk 10% bezet
-→ 802.11 MAC retransmitteerde intern 7 keer maar faalde
-→ TCP ziet: packet loss!
-→ TCP concludeert: "Congestie! Halveer congestion window."
-→ Throughput daalt van 10 Mbps naar 5 Mbps
-→ Oorzaak: niet congestie maar radiointerferentie
+T_transmissie ≥ 2 × T_propagatie
 ```
+De minimale framegrootte (64 bytes = 512 bits) is zo gekozen dat aan deze eis wordt voldaan.
 
-TCP "bestraft" zichzelf onnodig, wat leidt tot dramatisch lagere throughput op WiFi dan de beschikbare bandbreedte rechtvaardigt.
+**Rekenvoorbeeld 10 Mbps:** T_tx = 512 bits / 10 Mbps = 51,2 μs → max kabel = 51,2 μs × 200 m/μs / 2 ≈ **2560 m**.
+**100 Mbps met hub:** T_tx = 512 bits / 100 Mbps = 5,12 μs → max kabel ≈ **256 m** (10x strenger!).
+
+| Configuratie | CSMA/CD | Kabelbeperking |
+|---|---|---|
+| Classic 10 Mbps, hub | Ja | ~2500 m (collision-timing) |
+| Fast 100 Mbps, hub | Ja | ~256 m (**strenger**) |
+| Switched, half-duplex | Ja (per poort) | Per poort |
+| Switched, **full-duplex** | **Nee** | **Enkel attenuatie** (~100 m Cat5e) |
+
+**Waarom full-duplex de limiet opheft:** zenden en ontvangen op aparte aderparen → collisions fysiek onmogelijk → CSMA/CD uitgeschakeld → de collision-driven kabellimiet verdwijnt. Enige resterende limiet is signaalattenuatie (~100 m voor Cat5e).
+
+**Gigabit Ethernet:** bij 1 Gbps zou T_tx = 5,12 ns (onwerkbaar kort). Oplossing: **carrier extension** verlengt korte frames kunstmatig tot 512 bytes (4096 bits) + **frame bursting** voor efficientie. Bij 10G: enkel full-duplex, geen hubs, CSMA/CD overbodig.
+
+---
+
+### 4.5 802.11 Packet Loss als TCP Congestion Signaal
+
+**Kernprobleem:** TCP interpreteert **alle** packet loss als congestie → halveert cwnd (AIMD). Op WiFi zijn de meeste verliezen door:
+
+- Radiointerferentie (andere netwerken, magnetrons, Bluetooth)
+- Hidden terminal collisions
+- Signaalzwakte/multipath fading
+- Uitgeputte MAC-layer retransmissies (802.11 herprobeert intern tot 7x)
+
+Geen van deze is congestie. TCP "bestraft" zichzelf onnodig → throughput daalt dramatisch op een niet-gecongestioneerd netwerk.
 
 **Oplossingen:**
-- **ECN**: expliciet congestiesignaal vermijdt de verwarring met link-layer fouten.
-- **TCP Westwood**: schat bandbreedte via ACK-patronen en distinguisheert type verlies.
-- **QUIC**: applicatielaag kan verliestype beter interpreteren.
-- **WiFi-link layer ARQ**: 802.11 maskeert fouten al intern; ideaal gedrag als MAC de meeste fouten intern herstelt voordat TCP ze ziet.
 
----
-
-### 4. CSMA/CA: Hidden/Exposed Terminal, NAV en RTS/CTS
-
-**Hidden Terminal Problem**
-
-```
-Node A ←→ Node B (AP) ←→ Node C
-A en C kunnen elkaar NIET horen
-
-A: "Kanaal vrij" → begint te zenden
-C: "Kanaal vrij" → begint ook te zenden (hoort A niet)
-→ Collision bij B
-→ Beide transmissies verloren
-```
-
-Carrier Sense lost dit niet op: A en C luisteren elk lokaal, maar hun bereiken overlappen niet. Ze zien allebei een "vrij" kanaal.
-
-**Exposed Terminal Problem**
-
-```
-Node A ←→ Node B ←→ Node C ←→ Node D
-B zendt naar A. C wil zenden naar D.
-
-C: "Kanaal bezet" (hoort B) → wacht onnodig
-→ C→D zou A niet storen (D is buiten bereik van A)
-→ Onnodige inefficiëntie
-```
-
-**Kan traditionele CSMA dit oplossen?** Nee. CSMA luistert enkel lokaal. De fundamentele oorzaak (asymmetrisch bereik) is niet detecteerbaar via carrier sense alleen.
-
-**Network Allocation Vector (NAV)**
-
-NAV is een *virtuele* carrier sense timer. Een node die een frame ontvangt, leest de **Duration-veld** in de 802.11-header. Dit veld geeft aan hoe lang het kanaal bezet zal zijn (inclusief data + ACK). De node stelt zijn NAV in op deze duur en zendt niet totdat de NAV op 0 staat.
-
-```
-A ────── DATA (Duration: 1000 μs) ──────► B
-         ↑ C hoort dit frame
-         C stelt NAV = 1000 μs
-         C wacht 1000 μs (zelfs als C B's ACK niet hoort)
-```
-
-NAV stelt nodes in staat om het kanaal als "bezet" te beschouwen zonder het signaal te horen — virtuele carrier sense.
-
-**RTS/CTS mechanisme**
-
-RTS (Request To Send) en CTS (Clear To Send) lossen het hidden terminal-probleem op:
-
-```
-Stap 1: A stuurt RTS naar B (klein frame, Duration = data + CTS + ACK tijd)
-Stap 2: B stuurt CTS naar A (Duration = data + ACK tijd)
-         ↑ C hoort CTS van B → stelt NAV → wacht
-         (C hoorde A's RTS misschien niet, maar hoort B's CTS wel)
-Stap 3: A stuurt DATA naar B (C zwijgt door NAV)
-Stap 4: B stuurt ACK naar A
-```
-
-**Waarom werkt dit voor het hidden terminal-probleem?**
-- A en C kunnen elkaar niet horen (hidden).
-- Maar zowel A als C kunnen B horen (ze zijn allebei in bereik van de AP).
-- C hoort B's CTS en weet: "B is bezig, ik moet wachten" → geen collision bij B.
-
-**Exposed terminal en RTS/CTS:** RTS/CTS lost het exposed terminal-probleem *niet* op. C hoort B's RTS en stelt zijn NAV in — C wacht onnodig, ook al zou C→D geen interferentie veroorzaken. RTS/CTS maakt het exposed terminal-probleem zelfs iets erger.
-
-**Wanneer RTS/CTS te gebruiken?**
-
-RTS/CTS heeft overhead (2 extra frames per datatransmissie). Het is daarom voordelig enkel voor grote frames:
-- 802.11 heeft een configureerbare RTS-threshold (typisch 2347 bytes = uitgeschakeld).
-- Voor kleine frames: overhead van RTS/CTS is te groot t.o.v. voordeel.
-- Voor grote frames (video, FTP): collision van een groot frame is duurder dan de RTS/CTS-overhead.
-
----
-
-### 5. LoRa Netwerk: Fundamentele Beperkingen
-
-**LoRa-karakteristieken:**
-- Bereik: tot 20 km (landelijk), 2–5 km (stedelijk)
-- Datarate: 250 bps (SF12, max bereik) tot 50 kbps (SF7, min bereik)
-- Propagatievertraging: 20 km / (3×10^8 m/s) ≈ **67 μs** — verwaarloosbaar
-
-**1. Datatransmissiesnelheid (Duty Cycles)**
-
-LoRaWAN opereert in het licentievrije ISM-band (868 MHz in Europa). Regelgeving beperkt het luchtkanaalgebruik:
-- **Duty cycle: maximaal 1%** per frequentiekanaal.
-- Bij 1% duty cycle en een transmissietijd van 1,6 seconden (SF12, 50 bytes):
-  - Verplichte wachttijd: 1,6 s / 0,01 = **160 seconden** tussen opeenvolgende transmissies.
-  - Maximale throughput: 50 bytes / 160 s ≈ **2,5 bytes/seconde = 20 bps effectief**.
-
-Dit is een absolute regulatoire limiet, niet een technische. LoRa is ontworpen voor sporadische sensordata, niet voor continue datastromen.
-
-**2. Botsingskans**
-
-Transmissietijd bij SF12 voor 50 bytes: ±1,6 seconden. Bij SF7 voor 50 bytes: ±50 ms.
-
-Het "collision window" is het tijdsinterval waarbinnen twee transmissies elkaar kunnen storen. Bij ALOHA:
-
-```
-P(collision voor packet X) = 1 - e^(-2λ × T_airtime)
-waarbij λ = aankomstrate packets per seconde
-```
-
-Bij T_airtime = 1,6 s en λ = 1 packet/minuut per node, 100 nodes:
-- Totale λ = 100/60 ≈ 1,67 packets/s
-- P(collision) = 1 - e^(-2 × 1,67 × 1,6) ≈ 1 - e^(-5,3) ≈ **99.5%** collisions!
-
-Dit toont dat LoRa bij hoge node-densiteit fundamenteel schaalprobleem heeft met ALOHA. Oplossing: meerdere kanalen (LoRaWAN biedt 8 kanalen), frequentiespringen, en TDMA-scheduling.
-
-**3. Payload Size Limiet**
-
-LoRa's maximum payload:
-- SF12 (max bereik): maximaal **51 bytes** payload (door duty cycle + coding overhead)
-- SF7 (max throughput): maximaal **222 bytes** payload
-- Praktisch: typisch 10–50 bytes per bericht
-
-Dit past bij IoT-toepassingen (temperatuur: 2 bytes, GPS: 9 bytes) maar sluit bulkdata-overdracht volledig uit.
-
-**4. Hidden Terminal op grote schaal**
-
-Bij een bereik van 20 km: twee nodes die 35+ km van elkaar liggen, kunnen dezelfde gateway horen maar elkaar niet. CSMA werkt niet: carrier sense is lokaal en onbetrouwbaar over zulke afstanden. De standaard LoRaWAN-oplossing is een **sternetwerk** (star topology) met centrale gateway → ALOHA-achtige toegang → gateway coördineert timing via downlink (Class B beacons).
-
-**5. Best passende Sliding Window Protocol**
-
-Wiskundige analyse (zie ook sectie Transport Layer 2):
-- Propagatievertraging: 67 μs (één richting)
-- Transmissietijd SF12, 50 bytes: 1600 ms
-- a = 67 μs / 1600 ms ≈ 0,000042 → **a ≈ 0**
-- Stop-and-Wait efficiëntie: 1/(1+2×0,000042) ≈ **99,99%**
-
-Stop-and-Wait is praktisch optimaal voor LoRa vanwege de enorme transmissietijd versus de verwaarloosbare propagatievertraging.
-
-**Aanbeveling per scenario:**
-
-| Scenario | Protocol | Motivatie |
+| Aanpak | Laag | Werking |
 |---|---|---|
-| Enkele node, lichte belasting | Stop-and-Wait (ALOHA) | Eenvoud, efficiëntie door lage a |
-| Dense netwerk (>50 nodes/gateway) | TDMA via LoRaWAN Class B | Vermijdt collisions, duty cycle-aware scheduling |
-| Mobile nodes | ALOHA (best effort) | Geen synchronisatie mogelijk bij bewegende nodes |
-| Kritieke applicaties | Confirmed messages (Class A ACK) | ACK per packet, hertransmissie bij verlies |
+| **ECN** | Netwerk | Expliciet congestiesignaal, geen verwarring met link-fouten |
+| **Data-link ARQ** | Data link | 802.11 ACKs + retransmissie maskeren link-verlies lokaal |
+| **TCP Westwood** | Transport | Schat beschikbare bandbreedte via ACK-timing i.p.v. verlies |
+
+**Cross-layer inzicht:** data-link retransmissie (hop-by-hop, lage latency) en transport retransmissie (end-to-end, hogere latency) zijn complementair. Lokale recovery op een lossy wireless hop voorkomt dat TCP het verlies als congestie misverstaat. Dit is waarom 802.11 **acknowledged connectionless** service biedt (in tegenstelling tot Ethernet's unacknowledged connectionless).
+
+---
+
+### 4.6 LoRa: Beperkingen, ALOHA-analyse, MAC-verbeteringen
+
+**Karakteristieken:** bereik ~20 km, datarate 250 bps (SF12) – 50 kbps (SF7), T_prop ≈ 67 μs (verwaarloosbaar t.o.v. airtime).
+
+**1. Duty Cycle (regulatoir):** ISM 868 MHz, max 1% duty cycle per kanaal.
+Bij SF12, 50 bytes → T_airtime ≈ 1,6 s → wachttijd = 1,6 / 0,01 = **160 s**. Effectieve throughput ≈ **2,5 bps**.
+
+**2. Collision-analyse (Pure ALOHA):**
+```
+P(collision) = 1 - e^(-2 * lambda * T_airtime)
+```
+100 nodes, elk 1 pkt/min → lambda = 100/60 ≈ 1,67 pkt/s, T_airtime = 1,6 s → P ≈ **99,5%** collision. LoRa schaalt fundamenteel niet met Pure ALOHA bij hoge node-densiteit.
+
+**3. Sliding Window keuze:** a = T_prop / T_frame = 67 μs / 1600 ms ≈ 0 → Stop-and-Wait efficiency ≈ 99,99%. S&W is optimaal voor LoRa (geen baat bij sliding window).
+
+**4. Hidden terminal:** nodes 35+ km apart horen elkaar niet maar delen dezelfde gateway → carrier sense (CSMA) onmogelijk op deze schaal → star-topologie met centrale gateway + ALOHA-achtige toegang is onvermijdelijk.
+
+**MAC-verbeteringen om ALOHA-problemen te mitigeren:**
+
+| Techniek | Wat het oplost |
+|---|---|
+| TDMA/slotting (Class B) | Vermijdt blinde collisions door tijdslots |
+| CSMA/Listen-Before-Talk | Carrier sense waar mogelijk (korte range) |
+| Channel hopping | Bestrijdt narrowband interferentie |
+| Adaptive Data Rate | Verkort airtime waar signaal sterk genoeg → kleiner collision-window |
+| Duty-cycle coordinatie | Spreidt zendmomenten over gateways |
+| ACKs + retransmissie | Betrouwbaarheid voor kritieke data |
+
+| Scenario | Aanbevolen protocol | Motivatie |
+|---|---|---|
+| Enkele node, licht verkeer | Stop-and-Wait | Eenvoud, efficiency ≈ 100% |
+| Dense (>50 nodes) | TDMA (Class B) | Vermijdt collisions |
+| Mobiele nodes | ALOHA (Class A, best effort) | Geen synchronisatie mogelijk |
+| Kritieke data | Confirmed (Class A + ACK) | Hertransmissie bij verlies |
+
+---
+
+### 4.7 Pure ALOHA vs Slotted ALOHA
+
+| Kenmerk | Pure ALOHA | Slotted ALOHA |
+|---|---|---|
+| Wanneer zenden | Op elk willekeurig moment | Enkel bij slotgrenzen |
+| Vulnerable period | 2 x frametijd | 1 x frametijd |
+| Max channel efficiency | 1/(2e) ≈ **18%** | 1/e ≈ **37%** |
+| Synchronisatie nodig | Nee | Ja (globale klok) |
+
+**Waarom slotting de throughput verdubbelt:** in Pure ALOHA kan een frame botsen met elk frame dat begint in de 2T-periode rondom het eigen frame. Door alle frames te dwingen op slotgrenzen te beginnen, kan een frame enkel botsen met frames in **hetzelfde** slot → vulnerable period halveert → dubbele maximale throughput.
+
+**Trade-off:** slotting vereist tijdsynchronisatie. In netwerken waar synchronisatie moeilijk of duur is (grote afstanden, geen centrale klok), kan Pure ALOHA de enige optie zijn.
+
+**Kan Pure ALOHA op 802.11?** Fysiek mogelijk (zelfde radio), maar een slechte keuze: 802.11 gebruikt bewust CSMA/CA met collision avoidance, backoff en RTS/CTS. ALOHA's blinde transmissies verspillen een gedeeld radiokanaal, negeren hidden terminals, en bieden geen ACK-mechanisme.
+
+---
+
+### 4.8 Framing: Byte-Stuffing vs Bit-Stuffing
+
+**Probleem:** framegrenzen moeten gemarkeerd worden met een flag-patroon. Als dat patroon toevallig in de data voorkomt, denkt de ontvanger dat het frame eindigt → escaping nodig.
+
+**Byte-stuffing:** flag-byte markeert grenzen. Bij elke flag of ESC in de data: voeg ESC-byte in voor het betreffende byte. Simpel te implementeren, maar duur bij veel voorkomens van de flag-waarde.
+
+**Bit-stuffing:** flag = `01111110`. Regel: na 5 opeenvolgende 1-bits in data, voeg automatisch een 0 in. Ontvanger verwijdert elke 0 na 5 enen. Het flag-patroon (zes opeenvolgende enen) kan zo nooit per ongeluk in de payload ontstaan.
+
+**Rekenvoorbeeld — byte 0xFF (11111111):**
+
+| Methode | Resultaat | Overhead |
+|---|---|---|
+| Bit-stuffing | 11111**0**111 = 9 bits | +1 bit |
+| Byte-stuffing | ESC + 0xFF = 16 bits | +8 bits (hele ESC-byte) |
+
+Bit-stuffing is hier **8x efficienter**. Hoe meer flag-achtige patronen in de data, hoe groter het voordeel van bit-stuffing.
+
+**Alternatief — byte count:** lengteveld vooraan specificeert framelengte. Compact, maar fataal zwak punt: als het lengteveld corrupt raakt, verliest de ontvanger synchronisatie volledig en een checksum redt dit niet (je weet niet meer waarop hij slaat).
+
+---
+
+### 4.9 Ethernet Frame Padding + Minimum Frame
+
+**Waarom 64 bytes minimum:** CSMA/CD vereist dat de zender nog aan het zenden is wanneer het collision-signaal terugkeert van het verste punt op het netwerk. Bij 10 Mbps, max ~2500 m kabel:
+```
+T_propagatie (round trip) ≈ 51.2 us
+T_transmissie (64B = 512 bits bij 10 Mbps) = 51.2 us  -->  precies gelijk
+```
+Als de payload korter is dan nodig, wordt het frame **gepad** met opvulbytes tot 64 bytes (inclusief header + CRC). Zonder padding zou een kort frame al verzonden zijn voor de collision terugkomt → collision ondetecteerbaar.
+
+**Gigabit Ethernet:** bij 1 Gbps zou 64 bytes slechts 0,512 μs duren → veel te kort. Oplossing: **carrier extension** vergroot het minimum effectief tot 512 bytes. **Frame bursting** laat meerdere korte frames achter elkaar zenden binnen een enkele carriersessie, waardoor de carrier-extension-overhead gedeeld wordt.
+
+---
+
+### 4.10 Stop-and-Wait: Wanneer Goed/Slecht
+
+**Throughput:** efficiency ≈ 1 / (1 + 2a), waarbij a = T_propagatie / T_frame.
+
+Stop-and-Wait is efficient wanneer **bandwidth-delay product < framegrootte** (a ≈ 0).
+
+| Scenario | RTT | Frame | Throughput | Oordeel |
+| --- | --- | --- | --- | --- |
+| Kort Ethernet (100m) | ~10 μs | 1500 B | ~1,2 Gbps | **Goed** (a ≈ 0) |
+| LoRa (SF12, 20 km) | ~134 μs | 1600 ms airtime | ~2,5 bps | **Goed** (a ≈ 0) |
+| Satelliet (GEO) | ~540 ms | 1000 B | ~15 kbps | **Slecht** (a >> 1) |
+| Trans-Atlantisch | ~80 ms | 1500 B | ~150 kbps | **Slecht** |
+
+**Waarom slecht bij hoog RTT:** de zender wacht idle op ACK terwijl de pijplijn leeg is. De link is het grootste deel van de tijd onbenut. Oplossing: **sliding window** (Go-Back-N of Selective Repeat) vult de pijplijn.
+
+**Methodiek voor examenvragen:** (1) schat RTT van het medium, (2) bereken a = T_prop / T_frame, (3) als a << 1: S&W volstaat, als a >> 1: sliding window nodig.
+
+---
+
+### 4.11 Null MAC: Problemen onder Belasting
+
+**Definitie:** geen carrier sense, geen backoff, geen retransmissie — luister 100% van de tijd, zend onmiddellijk.
+
+| Situatie | Probleem |
+|---|---|
+| Hoog verkeer | Veel collisions, geen exponential backoff om load te spreiden, geen recovery → **goodput collapst** naar nul |
+| Dicht bevolkt (stadscentrum) | Veel nodes, veel interferentie, geen mechanisme om te wachten → near-zero bruikbare throughput |
+| Licht verkeer, weinig nodes | Enige scenario waar Null MAC werkbaar is — collisions zijn zeldzaam |
+
+**Waarom dit een examenonderwerp is:** het illustreert dat MAC-protocollen niet optioneel zijn. Elk mechanisme (carrier sense, backoff, retransmissie) lost een specifiek probleem op. Null MAC = worst-case baseline om andere protocollen tegen af te zetten.
+
+---
+
+### 4.12 802.11 Power Saving (twee strategieen)
+
+| Strategie | Mechanisme | Use case |
+|---|---|---|
+| **Beacon + TIM / PS-Poll** | AP stuurt periodiek beacon met Traffic Indication Map. Slapende client waakt enkel voor beacons, ziet of hij geflagged is, stuurt PS-Poll om gebufferde data op te halen | Battery-powered device dat meestal idle is (sensor, telefoon in standby) |
+| **APSD (Automatic Power Save Delivery)** | Client waakt enkel wanneer hij zelf wil zenden (vaste intervallen). AP levert gebufferde downlink-data mee in hetzelfde wake-window | Periodieke reporting (VoIP, telemetrie) — voorspelbare timing |
+
+**Kernverschil:** bij Beacon+TIM bepaalt het **AP** wanneer de client kan ophalen (beacon-interval). Bij APSD bepaalt de **client** het schema — efficienter bij voorspelbare applicaties.
+
+**Cross-layer link:** vergelijk met BMAC (client-side sampling) vs TSMP (netwerk-gestuurd schema). Dezelfde afweging: wie controleert het wake-schema, en hoe voorspelbaar is het verkeer?
+
+---
+
+### 4.13 Cross-layer: MAC-protocol Keuze bij AODV
+
+AODV is reactief/on-demand: routes worden pas ontdekt wanneer nodig (RREQ flooding). Topologie is dynamisch — nodes komen en gaan. Dit vereist een MAC dat **op elk moment kan zenden zonder vooraf geconfigureerde schedule**.
+
+| MAC | Past bij AODV? | Waarom |
+|---|---|---|
+| **CSMA/CA** | **Goed** | Zendt wanneer nodig, geen schedule, tolereert nodes die komen/gaan |
+| **BMAC** | **Goed** | Idem + energiebesparing via LPL; asynchroon, geen centrale coordinatie |
+| **TSMP/TDMA** | **Slecht** | Vereist pre-established schedule + tijdsynchronisatie → clashed met AODV's dynamische route discovery |
+| **Pure ALOHA** | **Slecht** | Geen carrier sense, geen backoff → hoge collision rate bij RREQ flooding |
+
+**Kernredenering:** scheduled MACs (TSMP/TDMA) veronderstellen een stabiele topologie met bekende deelnemers. AODV veronderstelt het tegenovergestelde. Een topologiewijziging bij TDMA forceert kostbare herscheduling, terwijl bij CSMA/CA of BMAC een nieuwe node gewoon kan beginnen zenden.
+
+**Waarom Pure ALOHA ook slecht is:** AODV's route discovery gebruikt flooding (RREQ naar alle buren). Zonder carrier sense of backoff leidt dit tot massale collisions — precies wanneer het netwerk communicatie het hardst nodig heeft.

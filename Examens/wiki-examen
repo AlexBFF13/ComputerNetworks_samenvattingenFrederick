@@ -1,0 +1,413 @@
+2024
+examenmoment 1 én 2 (zelfde examen voor beide momenten)
+
+Gesloten boek:
+Datalink laag:
+Geef 2 MAC protocollen die goed werken bij AODV en 2 MAC protocollen die slecht zouden werken bij AODV
+Leg Hidden terminal en exposed terminal problem uit
+Kan je pure Aloha implementeren op 802.11
+Switch en Hub, leg uit
+Transport laag:
+Leg Quic uit en besrpeek verschillen met TCP
+Teken diagram van TCP Tahoe
+ECN, wat is het? Advantage en disadvantage tov RED
+Open boek:
+Application layer:
+Maak chataplicatie adhv Napster/Gnutella/Bittorrent
+TOR spyen, beperkte en ongelimiteerde resources, hoe?
+Network layer:
+Security issues bij IPv6 auto-configuration en waarom veiliger met DHCPv6?
+MTU en IPv4 niet compatibel, waarom?
+2022
+Closed book exam. 2022-06-28, 17:00, 200C. Sunny day, 23°C.
+
+Layering + Application layer
+DNS
+Stel een puur iteratieve versie wat zijn de voor- en nadelen
+Stel een puur recursieve versie wat zijn de voor- en nadelen
+Connectionless en Connection-oriented
+Leg connectionless en connection-oriented uit.
+Geef een voorbeeld van een protocol dat connectionless is in een hogere laag en connection-oriented in een lagere laag.
+Geef zowel een voorbeeld van een connectionless en connection-oriented protocol in alle lagen (Application, Trasnsport, Network, Data-link, Physical).
+Transport layer
+Leg alle velden van de RTP header kort uit
+Leg uit congestion control bij TCP kies zelf of je uitbereid over TCP Reno en TCP Tahoe. (maak evt grafieken)
+Network layer
+Leg uit: Verschil tussen BGP en OSPF
+Leg uit: RED
+Oefening: subnet topology (hoeveel subnets, hoeveel bits voor #subnets, hoeveel hosts per subnet, nieuwe subnetmask)
+Data link layer
+Privacy&security conecerns bij
+Classic ethernet
+Switched ethernet
+802.11 (wifi)
+BMAC & LPL
+Implicatie preamble en sample interval
+Hoe configureer je best BMAC bij hoge data rates
+Hoe configureer je best BMAC bij lage data rates
+2021
+Closed-book exam. 2021-06-23, 8:00 AM, QDV 01.01. Cold and rainy day.
+
+OSI Model + Application Layer
+Give the OSI layer of the following protocols.
+TCP
+SMTP
+FTP
+DHCP
+Gnutella
+RTP and DHCP can be viewed as pertaining to other layers than those they are part of. Which layers do they belong to, and what are the arguments for assigning each to a different layer? Which layer?
+Describe the steps of DHCP.
+Give the reasons for why splitting DNS resolution into a recursive and iterative part adds significant efficiency to the lookup process.
+Transport Layer
+[TCP header given] Explain briefly what each field does.
+What is tinygram syndrome? Which methods solve it?
+Network Layer
+[Multiple-choice with Cisco Packet Tracer figure given; two hosts A and B connected to a switch connected to a router, connected to a copy of that system with hosts C and D.]
+What is the IP destination at <intermediate point> when A sends to C? (Wrong answer: not C.)
+What is the IP source at <intermediate point> when A sends to C? (Wrong answer: not A.)
+What is the default gateway for host A? (Wrong answer: the switch.)
+If pinging the first LAN's router doesn't work from the second, what could be the cause? (Wrong answer: the first router not being the default gateway for C.)
+Which hosts can see a broadcast by A to 10.5.255.255/16? (Wrong answer: hosts on the 2nd LAN.)
+Give and discuss two congestion control mechanisms at the network layer.
+Datalink & Physical Layer
+When does BMAC perform much better than TSMP? How do we configure BMAC for 1) high-rate messages and 2) low-rate messages?
+Given a link-layer system that uses a stop-and-wait sliding window.
+In which medium does this suck?
+In which medium is this good?
+Analyse both of your answers by estimating the RTT and throughput, again given stop-and-wait sliding windows.
+2020
+15 Juni
+Alles gesloten boek. (De vragen waren ook in het Engels uiteraard)
+
+AL
+
+1) zet de juiste protocollen bij de juiste osi layer model -> RTP,chord, DHCP, UDP, AOVD (5pt)
+
+2) (a) wake on lan uitleggen (5pt)
+
+(b) geef zoveel mogelijk redenen waarom wake on lan werkt op udp en niet tcp
+
+3) Gnutelle 0.4 vs 0.6 uitleggen (10pt)
+
+TL
+
+1) silly window (5pt)
+
+(a) explain en wat hebben we gezien om het op te lossen
+
+2) sliding window protocols (5pt)
+
+(a) geef beperking van range sequence nummer en window
+
+(b) wat is nack en voor wat gebruikt
+
+(c) wanneer is stop & wait heel slecht
+
+3) leg tcp flow control uit (10pt)
+
+NL
+
+1) wanneer prefeer je AODV over OSPF, justify uw antwoord (5pt)
+
+2) wat is count to inifnity (5pt)
+
+3) ip adressen (10pt)
+
+(a) wat voor een type adres is dit
+
+(b) ge krijgt een ip adres en een mask geef broadcast adres
+
+(c) ge krijgt een ander ip adres en een andere mask geef broadcast adres
+
+(d) ge krijgt een network part, wat is laagste host
+
+(e) ge krijgt een network part, wat is hoogste host
+
+DL
+
+1) 802.11 we hebben twee manieren gezien om power saving te doen via applicatie layer (10pt)
+
+2) classic internet is trager me een lange draad, waarom? (5pt)
+
+3) Low power listening (5pt)
+
+(a) wat is preamble en wat is relatie met polling?
+
+(b) hoe zou ge bmac met low rate data doen
+
+(c) hoe zou ge bmac met high rate data doen
+
+2018
+24 Juni
+Duurt 3 uur
+
+Application Layer + Layering (Gesloten boek)
+Draw the OSI stack, the TCP/IP Stack and the Tanenbaum stack and label the diagram. Give examples for each layer.
+Describe how the PING/PONG and QUERY/QUERYHIT are used in Gnutella 0.4. Make sure you:
+Describe how a connection is set up
+Describe how a file is requested
+Describe how a file requests stops and why.
+Why does DNS use UDP over TCP?
+FTP
+Why is there a seperate connection for the control and transfer process?
+What is passive mode and why is it used?
+Transport Layer (Gesloten boek)
+Silly Window Problem [6 Marks]
+Define the ‘Silly Window problem’. What technique(s) did we study to avoid this problem?
+TCP Sockets in Java [6 Marks]
+Draw a high-level sequence diagram showing the interaction between a TCP client and a
+server in Java. Your diagram should include (i.) the construction of objects, (ii.) the method
+calls that are necessary for communication, (iii.) connection tear-down.
+● Note: recalling the exact names of relevant classes and methods is not required as
+long as I can understand your answer.
+TCP Flow Control [4 Marks]
+Explain TCP Flow control in as much detail as possible
+Congestion Control: ECN [4 Marks]
+Describe the operation of Explicit Congestion Notification (ECN) in as much detail as you are able.
+Provide one advantage and one disadvantage of ECN in comparison to Choke packets.
+Network Layer (Open boek)
+MTU and IP fragmentation are mutually incompatible
+Why is this the case?
+Is there a way we can make changes so that they are compatible?
+Is doing so efficient? Why?
+In the IoT community there is considerable debate about using the IP stack or creating a new stack specifically for IoT.
+Give features of IoT in your opinion not suited to the IP Stack
+Is IPv4 or IPv6 better suited to IoT applications?
+What do you think: is IP or no-IP better?
+Data Link Layer (Open boek)
+B-MAC vs. TSMP: Give an application where BMAC would perform significantly better than TSMP
+Stop-and-wait is a sliding window protocol which we have covered:
+In which physical layer will Stop-and-wait work poorly?
+In which physical layer will Stop-and-wait work well?
+In the situation that using Stop-and-wait would work well, research the physical layer and find out what the maximum transmission rate would be if we use stop-and-wait.
+Juni 2017
+19 juni 2017 + 20 juni 2017
+Application Layer (25p - open boek)
+FTP [7p]
+Waarom gebruikt men verschillende verbindingen voor control en data-transfer?
+Wat is het probleem bij FTP met NAT?
+Hoe lost passive mode dit op?
+Building Gnutella over Chord met text-based searching (dus hashen voor queries te doen gaat niet werken) [18p]
+Wat vervangt Chord?
+Denk je dat Gnutella over Chord draaien een performantieverschil geeft (vergeleken met gewone Gnutella lijkt me)?
+Na file discovery kan je de file downloaden met een directe TCP-verbinding maar ook via de Chord-overlay. Geef een voordeel en nadeel aan 1 methode tegenover de andere.
+Transport Layer (25p - open boek)
+Real time protocol [12p]
+Vergelijk de sequencing van RTP en TCP. Waarom is er een verschil?
+Is RTP meer geschikt voor het downloaden van een video file dan TCP? Waarom?
+Welk probleem kom je tegen bij een netwerk met high-volume RTP traffic, dan je niet hebt bij TCP?
+Vergelijk TCP flow control met go-back-N. Geef verschillen en gelijkenissen. [13p]
+Network Layer (25p - gesloten boek)
+Packet fragmentation [15p]
+Definieer fragmentation (network layer) en segmentation (transport layer).
+Waarom is er een verschil ("difference in approaches")?
+Gaan packets door de network layer allemaal op dezelfde manier?
+Waarom kan je niet MTU en fragmentatie tegelijk gebruiken?
+Wat is de rol van ICMP bij MTU?
+Bespreek AODV in zo veel mogelijk detail. In welk geval zou AODV beter presteren dan OSPF? [10p]
+Data Link Layer (25p - gesloten boek)
+Hidden/exposed terminal problem [15p]
+Wat is het hidden terminal problem?
+Hoe wordt dat opgeslost met de MAC protocols (geef 2 voorbeelden)?
+Wat is het exposed terminal problem?
+Kan CSMA hierbij helpen?
+Wat zijn de voordelen van channel hopping? [15p]
+Beschrijf pure ALOHA in zo veel mogelijk detail. Vergelijk de performantie met slotted ALOHA. [10p]
+27 juni 2017
+Application Layer (25p - gesloten boek)
+Wat is het verschil tussen HTTP 1.0 en 1.1 en leg uit waarom dit voordelig is.
+Leg uit hoe DHCP geïmplementeerd wordt, je kan kiezen om het via woorden uit te leggen of via een getekend schema. Zeg ook ofdat DHCP via TCP geïmplementeerd kan worden.
+Transport Layer (25p - open boek)
+Geef de verschillende manieren waarmee TCP omgaat met verschillende netwerken(congestie, sliding window, etc.).
+Leg uit hoe een ACK clock werkt
+Network Layer (25p - open boek)
+Zeg wat fragmentation is en leg het belang van IMCP packets uit om dit op te lossen.
+Bespreek waarom IPv6 met automatische netwerkallocatie onveilig is.
+Data Link Layer (25p - gesloten boek)
+Wat zijn de 2 problemen dat zich kunnen voorstellen bij het verzenden?
+Leg uit hoe B-MAC werkt en waarom het over TSMP zou worden gebruikt.
+Leg uit hoe TSMP werkt en waarom het over B-MAC zou worden gebruikt.
+Juni 2015
+23 juni 2015
+Transport Layer [closed book, 25p]
+The RTP protocol. [10p]
+List the features of RTP, and why they are needed.
+List the features of TCP that are not in RTP, and why there are not in RTP.
+Describe the TCP flow control process. What is the difference with a standard selective repeat protocol? [10p]
+OSPF uses UDP, BGP uses TCP. Give reasons why these design choices were made. [5p]
+Data Link Layer [closed book, 25p]
+Compare Slotted ALOHA and TSMP on time synchronization. Give similarities and differences, and advantages and disadvantages. [10p]
+Give a scenario where BMAC outperforms TSMP, and one where TSMP outperforms BMAC. Consider traffic and environmental characteristics. [10p]
+Imagine a 'Null MAC' protocol, where the node listens 100% of the time, sends immediately whenever a message is ready and does no retransmissions. [5p]
+What problems do you think would occur in a network with high traffic?
+What problems do you think would occur in a crowded place such as a city center?
+Application Layer [open book, 25p]
+Describe a high-level design of Gnutella on top of Chord. [10p]
+Which protocol does Chord replace?
+Give advantages and disadvantages concerning features, network overhead and anonymity.
+What requirements does Chord place on its hash, and what would be the effect if a requirement wasn't fulfilled? [5p]
+Name three protocols that use UDP. Why can they not use TCP? [10p]
+Network Layer [open book, 25p]
+The following network has 100 Mbps Ethernet links and follows the Tanenbaum stack. [10p]
+Computer Networks 20150623 Q4a.png
+Assign meaningful addresses to all network structures. Which are private addresses and which are public?
+Client 1 accesses Google. Give the Protocol Data Units on the four points A, B, C and D in the network (only towards Google, not in the opposite direction). Include the TSAP, NSAP and data link address and any header content you think is important.
+Your ISP only assigns one public IPv4 address to your home. Would it possible to replace the NAT box in your home with a router?
+The block 192.168.22.0/24 is assigned to this network. [10p]
+Computer Networks 20150623 Q4b.png
+Assign appropriate addresses to all network structures.
+Give the routing tables entries of PC A, router 1 and router 2 so they can access the university network, the internal file server and the internal web server.
+Give the ARP cache of PC A, router 2 and the internal web server when PC A accesses the internal web server.
+The IP header includes a TTL field. [5p]
+Why can't you have a TTL field in Ethernet?
+Can you replace the TTL field in the IP header with a similar field in the TCP/UDP header?
+15 juni 2015
+Transport Layer
+
+a) hoe werkt leaky bucket? voor wat staan R en B? (7p)
+b) teken voor een link aan 1Gbps hoe 1GB aan data verstuurd wordt voor (7p)
+i) B = 500MB, R=250Mbps
+ii)B = 0, R = 500Mbps
+c) waarom gebruik je TSAP's? (4p)
+d) (7p)
+Data Link Layer
+
+a) Leg uit hoe Pure Aloha werkt. Wat is de verbetering van Slotted Aloha (7p)
+b) kan aloha geimplementeerd worden op 802.11? (4p)
+c) leg uit: hidden en exposed terminal problem en zeg hoe dit kan opgevangen worden door MAC protocols (7p)
+d) ethernet: waarom moet je padden (geef twee gevallen en bespreek) (7p)
+Application Layer
+
+a) vergelijk Gnutella 0.4, 0.6 en Chord qua privacy
+b) (7p)
+c) geef 3 applicaties die UDP gebruiken, en leg uit waarom ze geen TCP gebruiken (7p)
+d) welke voordelen heeft HTTP 1.1 t.o.v. HTTP 1.0?
+Network Layer
+
+a) Leg uit hoe Distance Vector Routing werkt, welke protcollen het gebruiken en hoe ze omgaan met count-to-infinity(11p)
+b) vergelijk ECN, choke packets en RED qua i)naukeurigheid ii) efficientie iii) tijd (7p)
+c) gegeven een IPv6 addres, zeg wat voor type dit is, geef alle delen aan, vereenvoudig (7p)
+5 juni 2015
+Application Layer (25p - gesloten boek)
+
+a) TOR: Welke informatie heeft een entry routing node, een ending routing node en een intermediate routing node. Bijvragen: Hoeveel intermediate nodes zijn er minstens nodig om veilig te zijn? Heeft het zin om er veel meer bv. 10 te hebben? (7p)
+b) Gnutella: Stel je bent een spion die gevraagd wordt om in het oog te houden welke files zoal gedownload worden. Hoe ga je te werk in Gnutella 0.4 en 0.6? Hoe maak je connectie? Wat zie je en welke informatie krijg je daaruit? (7p)
+c) DHCP: Leg werking uit (in diagram of tekstvorm). Zou dit ook kunnen werken met TCP? (7p)
+d) Hoe zou je DNS testen met Telnet? Verklaar. Bijvraag: Hoe zou je DNS dan wel kunnen testen? (4p)
+Data Link Layer (25p - gesloten boek)
+
+a) TSMP: Leg gedetailleerd uit. (7p)
+b) Switches - Hubs: Leg uit wat het is. Wat zijn de voordelen van een switch t.o.v. een hub? (7p)
+c) Ethernet: Leg uit waarom er een beperking is bij klassieke Ethernet in kabellengte. Is deze hetzelfde voor a) Fast Ethernet met hub, b) Fast Ethernet met switch. Leg uit. (7p)
+d) Kan het Pure ALOHA algoritme ook werken op 802.11? Verklaar. (4p)
+Transport Layer (25p - open boek)
+
+a) Gegeven output na PING message (zie labs). Welk sliding window protocol zou het geschikste zijn in deze situatie? (7p)
+b) Delayed acknowledgements: Leg uit waarom deze nuttig zijn bij een betrouwbare verbinding bv. TCP. Zou dit goed samenwerken met Nagle's algoritme? Verklaar. (4p)
+c) UDP: Welke services biedt UDP? Leg uit waarom/wanneer deze nuttig zijn. (7p)
+d) Retransmission: Leg uit waarom het goed is dat deze in de Transport Layer gebeuren. Geef ook voordelen van retransmission in de Data Link Layer. (7p)
+Network Layer (25p - open boek)
+
+a) Distance Vector Routing: Leg kort de werking uit. Geef aan welke protocollen hier gebruik van maken en hoe ze het count-to-infinity problem aanpakken. (7p)
+b) Congestion Notifications: Vergelijk choke packets, ECN en RED op vlak van efficientie, vertraging (tussen aangeven van congestie en ingrijpen van systeem) en effectiviteit (zoiets ongeveer). (7p)
+c) Adressering: Vergelijk adressering in Network Layer met die in Data Link en Application Layer. Geef aan waarom dit nodig is. Bespreek uitvoerig. (7p)
+d) IPv6: Welke security issues zijn er bij de auto configuratie van IPv6 adressen? (4p)
+Juni 2014
+16 juni 2014
+Totaal op 100 punten, elke layer op 25 punten. Onderdelen telkens 7/7/7/4
+
+Application Layer
+
+a) HTTP 1.0 en 1.1: welke voordelen heeft HTTP 1.1 tov 1.0? wanneer is dit performantievoordeel het grootst?
+b) DHCP uitleggen (diagram of tekst), waarom niet met TCP?
+c) DNS: er is een recursief en iteratief deel, leg uit en illustreer met tekening
+d) Stel dat er enkel een recursief deel is, hoe zou het er dan uit zien, en wat zijn de voor- / nadelen?
+Data Link layer
+
+a) Wat is het voordeel van een switch tov een hub?
+b) TSMP uitleggen
+c) Hidden and exposed terminal problem
+d) Kan het pure aloha algoritme ook werken op 802.11?
+Transport Layer (Open boek)
+
+a) Hoe werkt TCP met delayed acks? kan dit ook werken met Nagle's algoritme?
+b) UDP services geven, en waarom werkt dit goed met DHCP?
+c) Hoe gaat TCP om met heterogeniteit van netwerken en dynamische veranderingen in het netwerk?
+d) Ack clock uitleggen
+Network Layer (Open boek)
+
+a) Gegeven een IPv6 address. Vereenvoudig en geef de functies van de verschillende delen
+b) Choke packets, ECN en RED vergelijken op i) snelheid van effect ii) efficientie iii) invloed op netwerk
+c) ipv6 address gegeven: wat betekent elk deel? kan je het adres afkorten? (iets als 2a02:0000:0000:0000:0000:0a3e:df3f:4b19)
+d) Waarom geen checksum in ipv6?
+13 juni 2014
+Vragen op wiki van Wina - Computernetwerken
+
+06 juni 2014
+Application:
+
+a) TOR: Welke informatie heeft een entry routing node, een ending routing node en een routing node in het midden. Bijvraag: Hoeveel nodes zijn er nodig voor een veilige verbinding?
+b) Hoe werkt DHCP? Kan dit op TCP werken?
+c) Hoe werkt DNS, maak een tekening, en duidt recursief/iteratief deel aan.
+d) Stel nu dat het recursief (of was het iteratief?) deel weggelaten wordt. Wat zijn dan de gevolgen?
+Network:
+
+a) Leg Round Robin fair queuing uit. Hoe kan een host hiervan misbruik maken?
+b) Leg AODV uit.
+c) Geef 2 vd 3 mogelijkheden voor congestion notification + voor/en nadelen.
+d) Geef een volledige definitie van unicast, anycast en broadcast.
+Transport (open boek):
+
+a) Gegeven een satellietverbinding tussen een ferry en een land. PING = +-2600ms. Hoe goed zullen de 3 geziene sliding window protocols (stop&wait, go-back-n, selective-repeat) hierop werken?
+b) Bereken de throughput van stop&wait bij voorgaande verbinding, als de maximum packet size = 1700B.
+c) Waarom is een sliding window protocol op transport layer nuttig? Wat zijn de voordelen van zo'n sliding window protocol op network & data link layer?
+d) Waarom werkt UDP goed met DNS? (anycast)
+Data Link (open boek):
+
+a) 2 situaties van low power listening: i) een systeem waarbij sensoren vrije plaatsen in een parking meten, ii) sensoren aan vaten met chemische stoffen, die niet bij elkaar in de buurt mogen komen, anders starten ze een alarm. Geef voor beide een protocol dat er het best bij past.
+b) Zou packet loss goed zijn om congestion aan te duiden in een 802.11 netwerk?
+c) Leg uit waarom byte stuffing werkt. Geef een numeriek voorbeeld waar bit stuffing efficiënter is dan byte stuffing.
+d) Stel dat hubs en switches evenveel kosten. Geef een situatie waarbij een hub beter zou zijn dan een switch.
+Juni 2013
+24 juni 2013
+Application: Je wil een sybil attack uitvoeren op een P2P netwerk (een sybil attack is een aanval waarbij je de rol van meerdere hosts nadoet). Hoe zou je dat uitvoeren bij
+Guntella0.4
+0.6
+Chord
+TOR
+en welke informatie kan je dan bemachtigen?
+Transport:
+Wat is delayed acknowledgement? Hoe werkt het samen met Nagle algoritme?
+Is packet loss een goeie indicator van congestion op een 802.11.weetikveel netwerk?
+Waarom retransmission in de transport layer? Waarom kan dat ook in de link layer en application layer?
+Network
+Hoeveel IP adressen moet een router hebben?
+Hoeveel IP adressen moet een switch hebben?
+Waarom kan IPv6 autoconfiguration niet toegepast worden op IPv4?
+Bespreek en geef verbanden: Dijkstra, Bellman Ford, Link state routing, BGP
+MAC
+Vergelijk die 2 draadloze sensornetwerken (BMAC en TSMP)
+Byte en bit stuffing
+19 juni 2013
+File:Computer Networks (G0Q43A) -- ExamenCN19Juni2013.1372668405.pdf
+
+13 juni 2013
+elk onderdeel ging op 20 punten.
+
+1)
+
+a) gnutella op chord ipv ip IP, beschrijf de optimalisaties voor connection, search en file transfer.
+b) security vergelijken van gewoon chord of gnutella (weet nimeer welk) en het nieuwe van in a.
+2)
+
+a) vergelijk, voordelen, ... van implicit en explicit tekenen van congestion.
+b) wrm retransmission in transport layer. Wrm niet in data of application layer.
+3)
+
+a) vergelijk aloha en basic ethernet.
+b) hoe beinvloeden transmission media aloha en basic ethernet.
+4)
+
+a)
+b) adres van ipv6 kan automatisch uit MAC of (ng iets) gehaald worden. Wrm kan dit niet met ipv4?
+c) vergelijk adressen in network, transport en mac.
