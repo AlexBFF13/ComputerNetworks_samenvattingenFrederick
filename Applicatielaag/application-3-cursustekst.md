@@ -270,6 +270,7 @@ Sterke nodes nemen meer verantwoordelijkheid op zich:
 - peer discovery
 - meer routing- en zoekwerk
 - lijsten van resources van leaf nodes bijhouden
+- fungeren als **proxy** voor hun leaf nodes
 
 ### Wat doen leaf nodes?
 
@@ -284,14 +285,51 @@ Zo:
 
 De slides noemen bijvoorbeeld:
 
-- geen firewall
+- geen firewall (moet direct bereikbaar zijn)
 - genoeg bandbreedte
 - genoeg uptime
 - genoeg RAM en CPU
 
+### Gnutella 0.4 versus 0.6: vergelijkingstabel
+
+| Aspect | 0.4 (vlak) | 0.6 (hierarchisch) |
+|--------|-----------|-------------------|
+| Topologie | Alle peers gelijk | Ultrapeers + leaf nodes |
+| Zoekverkeer | Flooding via **alle** peers | Geconcentreerd op ultrapeers |
+| Schaalbaarheid | Slecht (O(N) berichten) | Beter |
+| Anonimiteit | Hoger (enkel buren kennen je) | **Lager** -- een ultrapeer ziet alles van zijn leaves |
+
 ### belangrijk voor examen
 
-Gnutella 0.6 verbetert Gnutella 0.4 door een **super-node-architectuur** te gebruiken waarin sterke peers meer werk dragen dan zwakke peers.
+Gnutella 0.6 verbetert Gnutella 0.4 door een **super-node-architectuur** te gebruiken waarin sterke peers meer werk dragen dan zwakke peers. Maar dit gaat **ten koste van anonimiteit**: een ultrapeer kent de bestandslijsten, zoektermen en IP-adressen van al zijn leaf nodes.
+
+## Gnutella: transport-keuze
+
+Een subtiel maar examenwaardig punt is de transportkeuze binnen Gnutella:
+
+- **Discovery** (PING/PONG/QUERY): past bij **UDP** -- kleine berichten, connectionless, flooding-vriendelijk
+- **Bestandsoverdracht**: gebruikt **TCP/HTTP** -- betrouwbaar, geordend, een volledig bestand vereist dat alle bytes correct aankomen
+
+In de originele implementatie draait het overlay-netwerk zelf over **TCP-verbindingen** tussen peers. Maar conceptueel past de discovery-logica beter bij UDP-achtig gedrag.
+
+## Monitoring en spionage in Gnutella
+
+Dit is een favoriet examenvraagtype: "Hoe zou je het Gnutella-netwerk kunnen bespioneren?"
+
+### Spionage met beperkte resources (1 node)
+
+- **Als gewone peer in 0.4**: je ziet enkel QUERY/QUERYHIT die via jouw directe buren passeren. Beperkt zicht, want je ziet alleen verkeer dat toevallig door jou gerouteerd wordt.
+- **Als leaf node in 0.6**: je ziet enkel je eigen verkeer. Minimaal zicht.
+- **Als ultrapeer in 0.6**: je ziet **alle** QUERY's van jouw leaf nodes plus die van buur-ultrapeers. Je kent: zoektermen, IP-adressen, bestandslijsten en activiteitspatronen van je leaves. Dit is veel meer informatie dan een gewone peer in 0.4 ooit ziet.
+
+### Spionage met onbeperkte resources
+
+- **In 0.4**: deploy honderden nodes met hoge degree (veel buren) zodat je een groot deel van het flooding-verkeer ziet.
+- **In 0.6**: word ultrapeer op meerdere plekken in het netwerk. Als je 10% van alle ultrapeers controleert, zie je een significant deel van al het zoekverkeer.
+
+### Hughes-punt
+
+Gnutella 0.6 koopt **performantie** maar verliest **anonimiteit**. Copyright-handhaving en surveillance worden triviaal als je een ultrapeer controleert: je weet precies wie wat zoekt en wie welke bestanden aanbiedt.
 
 ## BitTorrent
 
@@ -390,6 +428,69 @@ De slides vermelden nog dat nieuwere versies van BitTorrent een **DHT** gebruike
 
 Dat vermindert de afhankelijkheid van trackers en maakt het systeem weer wat gedecentraliseerder.
 
+## Chord: gestructureerde P2P met DHT
+
+Chord wordt in de slides kort vermeld bij BitTorrent, maar het is een belangrijk onderwerp op zich. Chord lost het discovery-probleem op een fundamenteel andere manier op dan Gnutella.
+
+### Wat is een DHT?
+
+Een **Distributed Hash Table** (DHT) is een gedistribueerde datastructuur die key-value paren opslaat over meerdere nodes. Het doel: gegeven een key, vind de juiste node die de waarde bewaart, zonder flooding of centrale server.
+
+### Hoe Chord werkt
+
+Chord plaatst zowel **nodes** als **bestanden** op een circulaire ring van 0 tot 2^160 - 1 (de SHA-1 keyspace).
+
+- Elke node krijgt een positie op de ring via `hash(IP-adres)`
+- Elk bestand krijgt een positie via `hash(bestandsnaam)` of `hash(bestandsinhoud)`
+- Een bestand wordt opgeslagen op de **eerste node die gelijk aan of groter is** dan de hash van het bestand (de **successor**)
+
+### Finger tables
+
+Om niet langs elke node op de ring te moeten wandelen, houdt elke node een **finger table** bij. Die bevat verwijzingen naar nodes op exponentieel groeiende afstanden op de ring:
+
+- finger[1] = successor op afstand 2^0
+- finger[2] = successor op afstand 2^1
+- finger[k] = successor op afstand 2^(k-1)
+
+Dit geeft een lookup-complexiteit van **O(log N)** hops, in plaats van O(N) bij Gnutella's flooding.
+
+### Vereisten voor de hashfunctie
+
+De hashfunctie moet twee eigenschappen hebben:
+
+1. **Uniforme verdeling**: keys moeten gelijkmatig over de ring verdeeld worden. Als de verdeling scheef is, krijgen sommige nodes veel meer bestanden dan andere (hotspots), en wordt het systeem ongebalanceerd.
+
+2. **Collision-resistentie**: verschillende bestanden mogen niet dezelfde hash krijgen, anders worden ze op dezelfde node geplaatst en is het onduidelijk welk bestand je opvraagt.
+
+**Virtual nodes** helpen bij niet-perfecte verdeling: een fysieke node neemt meerdere posities in op de ring, wat de load beter spreidt.
+
+### Gnutella over Chord: de vergelijking
+
+Een belangrijke examenvraag is: "Wat als je Gnutella's discovery vervangt door Chord?" Dit geeft:
+
+| Aspect | Gnutella (flooding) | Gnutella op Chord |
+|--------|--------------------|--------------------|
+| Zoek-overhead | O(N) berichten | O(log N) gerichte hops |
+| Zoekgarantie | Nee (TTL-horizon) | Ja, als het bestand bestaat |
+| Privacy | Hoger (breed verspreide query) | **Lager** (deterministisch pad, traceerbaar) |
+| Keyword search | Ja (substring matching) | **Nee** -- enkel exacte hash-lookups |
+
+### Examenvalkuil: keyword search
+
+Chord ondersteunt **geen keyword of substring search**. Als je zoekt naar "Beatles", moet je de exacte hash van een bestandsnaam kennen. In Gnutella kan een QUERY een substring bevatten die door elke peer lokaal gematcht wordt.
+
+Om keyword search op Chord te bouwen, zou je een **extra indexlaag** nodig hebben die trefwoorden mapt naar bestandshashes. Dat voegt weer complexiteit toe.
+
+### Privacy-vergelijking: Chord vs Gnutella
+
+| Aspect | Gnutella 0.4 | Chord |
+|--------|-------------|-------|
+| Wie ziet je zoekterm? | Alle nodes langs het flood-pad | Enkel de nodes langs het O(log N) pad naar de key |
+| Traceerbaarheid | Moeilijk (query verspreidt breed) | Makkelijker (deterministisch pad, hash van zoekterm is publiek) |
+| Wie weet dat jij een bestand hebt? | Enkel jij (tot je een QUERYHIT stuurt) | De predecessor-node weet dat jij de key beheert |
+
+Chord is dus **minder anoniem** dan Gnutella: het deterministisch routeringspad maakt het makkelijker om te achterhalen wie wat zoekt of opslaat.
+
 ## Privacy en anonimiteit
 
 De laatste grote blok gaat over **TOR**.
@@ -435,6 +536,32 @@ Belangrijk detail uit de slides:
 
 Dus TOR beschermt sterk binnen het overlay-netwerk, maar zodra verkeer het gewone internet opgaat via de exit node, gelden de normale risico’s daar weer.
 
+### Wat weet elke node? (examenfavoriet)
+
+Dit is een van de vaakst gestelde TOR-vragen. De kennis per node is bewust beperkt:
+
+| Node | Bron-IP | Bestemming | Data | Vorige hop | Volgende hop |
+|------|---------|------------|------|------------|-------------|
+| **Entry node** | **Ja** | Nee | Versleuteld (2 lagen) | Client | Intermediate |
+| **Intermediate node** | Nee | Nee | Versleuteld (1 laag) | Entry | Exit |
+| **Exit node** | Nee | **Ja** | **Plaintext** (als geen end-to-end encryptie) | Intermediate | Server |
+
+Cruciale observatie: **geen enkele node kent zowel de bron als de bestemming**. Dat is precies het doel van het ontwerp.
+
+### Waarom minimaal 3 nodes (entry + intermediate + exit)?
+
+Met slechts **2 nodes** (entry die direct ook exit is, of entry -> exit zonder tussennode) kent een node zowel de bron-IP als de bestemming. Daarmee is de volledige **deanonymisatie** een feit.
+
+De **intermediate node** breekt de directe link: de entry kent de bron maar niet de bestemming, de exit kent de bestemming maar niet de bron.
+
+### Waarom NIET 10 hops?
+
+Meer hops lijkt veiliger, maar is dat paradoxaal genoeg niet:
+
+1. **Latency**: elke hop kost vertraging. 10 hops maakt TOR onbruikbaar traag.
+2. **Paradoxaal onveiliger**: de kans dat minstens een node gecompromitteerd is, stijgt met het aantal nodes. Bij kans p=20% per node: N=3 geeft 49% kans op minstens 1 slechte node, N=10 geeft 89%.
+3. **Globale timing-correlatie** (door een state actor) wordt niet door extra hops verslagen. Als een aanvaller zowel het begin als het eind van de communicatie kan observeren, helpen extra tussenliggende hops niet.
+
 ## Threat model
 
 De slides zijn hier vrij realistisch over. TOR kan niet alles voorkomen.
@@ -449,6 +576,32 @@ Een aanvaller kan bijvoorbeeld:
 - meerdere routers compromitteren
 
 TOR is ontworpen om vooral **traffic analysis** en monitoring moeilijker te maken, niet om een magische absolute onzichtbaarheid te bieden.
+
+### Surveillance-scenario’s (beperkte vs onbeperkte resources)
+
+Dit is een terugkerend examenvraagtype:
+
+**Met beperkte resources:**
+
+- Run een of meerdere **exit nodes**. Je kunt dan de **plaintext-inhoud** loggen van onversleuteld verkeer (HTTP, DNS-queries). Je ziet de bestemming, maar niet de afzender.
+- Traffic-pattern analyse op je exit node: correleer timing en volume van inkomend/uitgaand verkeer.
+
+**Met onbeperkte resources (state actor):**
+
+- **Globale timing-correlatie**: observeer verkeer bij zowel de entry als de exit. Correleer packet-timing en volume end-to-end. Dit is het sterkste aanvalsmodel en TOR biedt hier **geen bescherming** tegen.
+- Deploy een groot aantal malicious onion routers om de kans te verhogen dat een circuit volledig door jouw nodes loopt.
+
+Kernpunt: TOR beschermt tegen een **lokale adversary** (iemand die een deel van het netwerk ziet), maar niet tegen iemand die **beide uiteinden** simultaan observeert.
+
+### Sybil attack op TOR
+
+Een **Sybil attack** is een aanval waarbij een aanvaller een groot aantal valse identiteiten (nodes) in het netwerk injecteert. In de context van TOR:
+
+- Een aanvaller registreert honderden of duizenden onion routers bij de directory servers
+- Hoe meer nodes de aanvaller controleert, hoe groter de kans dat een willekeurig gekozen circuit **volledig door zijn nodes** loopt
+- Als de aanvaller zowel de entry als de exit node van een circuit controleert, kan hij timing-correlatie doen en de gebruiker deanonymiseren
+
+**Verdediging**: TOR’s directory authorities monitoren verdacht gedrag (te veel nodes van hetzelfde IP-bereik, nodes die net zijn opgezet). Maar een goed gefinancierde aanvaller kan dit omzeilen door geografisch verspreide nodes te deployen.
 
 ## TOR-architectuur
 
@@ -545,6 +698,29 @@ Dat lijkt een beetje op NAT-logica: ook daar wordt inkomend verkeer gekoppeld aa
 
 TOR verbergt de route door verkeer in lagen te versleutelen en via een **circuit** van onion routers te sturen; elke router kent alleen zijn **volgende hop**.
 
+## P2P chat-applicatie ontwerpen
+
+Dit was een examenvraag in 2024: "Ontwerp een P2P chat-applicatie." Het antwoord vereist dat je per fase van de applicatie de juiste overlay-architectuur kiest en beargumenteert.
+
+### De fasen en overlay-keuze
+
+| Fase | Beste overlay | Waarom |
+|------|--------------|-------|
+| **Login / presence** (wie is online?) | Napster-stijl centraal of Gnutella 0.6 superpeers | Je hebt een betrouwbare, doorzoekbare directory nodig. Flooding (Gnutella 0.4) is verspilling voor simpele presence-informatie |
+| **Contact opzoeken** (peer discovery) | Gnutella 0.6 | Superpeers routen lookups efficient; leaf nodes blijven licht |
+| **1-op-1 chat** | Directe verbinding (zoals Gnutella HTTP transfer) | Minimale latency, geen onnodige overlay-overhead |
+| **Groot bestand delen naar groep** | BitTorrent (swarming, chunked) | Schaalbaar bij populaire content, parallelle downloads |
+
+### Praktische overwegingen
+
+- **NAT traversal**: veel chat-gebruikers zitten achter NAT. Je hebt een PUSH/relay-mechanisme nodig (vergelijk Gnutella’s PUSH) zodat peers achter NAT toch bereikbaar zijn.
+- **Offline berichten**: als de ontvanger offline is, heb je tijdelijke opslag nodig. Dat vereist een server-component (zoals Napster’s centrale server) of superpeers die berichten bufferen.
+- **Privacy**: voor een chat-app is end-to-end encryptie belangrijk. TOR-achtige onion routing zou extreem zijn, maar minimaal wil je encryptie op de directe verbinding.
+
+### Kernles
+
+Een goede P2P chat-app combineert elementen van meerdere systemen: centrale of super-node indexering voor presence, directe verbindingen voor chat, en BitTorrent-achtige distributie voor grote bestanden. Geen enkel P2P-systeem alleen dekt alle behoeften.
+
 ## Samenvatting van het hoofdstuk
 
 Dit hoofdstuk laat drie grote P2P-thema’s zien.
@@ -569,20 +745,45 @@ Samen tonen die hoe breed "peer-to-peer" eigenlijk is: het gaat niet alleen om f
 
 ### belangrijk voor examen
 
+**Gnutella (topprioriteit, ~12 keer gevraagd):**
+
 - Het verschil tussen een **P2P-applicatie** en een echt **P2P-netwerk**
-- Waarom Napster niet volledig gedecentraliseerd was
-- Het basisidee van Gnutella 0.4
-- De rol van `PING`, `PONG`, `QUERY`, `QUERYHIT` en `PUSH`
-- Wat het **search horizon**-probleem is
-- Waarom Gnutella 0.6 ultrapeers gebruikt
-- De drie kernproblemen die BitTorrent oplost
+- Waarom Napster niet volledig gedecentraliseerd was (centrale indexering = single point of failure)
+- De rol van `PING`, `PONG`, `QUERY`, `QUERYHIT` en `PUSH` in Gnutella 0.4
+- Wat het **search horizon**-probleem is (TTL te laag = te weinig gevonden, te hoog = flooding)
+- Het verschil tussen **Gnutella 0.4** (vlak, flooding) en **0.6** (ultrapeers + leaf nodes)
+- Dat 0.6 performantie koopt maar **anonimiteit verliest** (ultrapeer ziet alles van zijn leaves)
+- **Monitoring/spionage**: wat je ziet als gewone peer (0.4), als leaf (0.6), als ultrapeer (0.6)
+- Het **NAT/PUSH-mechanisme**: hoe peers achter een firewall bestanden kunnen delen
+- De transport-keuze: UDP past bij discovery, TCP/HTTP bij bestandsoverdracht
+
+**Chord (DHT, ~5 keer gevraagd):**
+
+- Hoe Chord werkt: consistente hashing, circulaire ring, finger tables, O(log N) lookup
+- Hashfunctie-vereisten: uniforme verdeling + collision-resistentie
+- Chord vs Gnutella: beter zoekgarantie, maar **geen keyword search** en **minder anoniem**
+- Virtual nodes voor load balancing
+
+**TOR (~4 keer gevraagd):**
+
+- Het basisidee van **onion routing** (laag-per-laag encryptie)
+- **Wat elke node weet**: entry kent bron, exit kent bestemming, intermediate kent geen van beide
+- Waarom **minimaal 3 nodes** nodig zijn (intermediate breekt de link)
+- Waarom **niet 10 hops** (latency, paradoxaal onveiliger, timing-correlatie)
+- **Spionage met beperkte vs onbeperkte resources** (exit nodes loggen vs globale timing-correlatie)
+- **Sybil attack**: valse nodes injecteren om circuits te controleren
+
+**BitTorrent:**
+
+- De drie kernproblemen die BitTorrent oplost (discovery, replicatie, incentives)
 - Wat een **tracker**, **swarm**, **chunk** en **seeder** zijn
 - Waarom BitTorrent **rarest first** gebruikt
 - Hoe **tit-for-tat** free-riding tegengaat
-- Het basisidee van **onion routing**
-- De rol van **directory servers**, **Onion Proxy**, **Onion Routers** en **exit nodes**
-- Waarom TOR vooral tegen **traffic analysis** probeert te beschermen
-- Wat een **TOR circuit** is
+
+**P2P chat-app ontwerpen:**
+
+- Per fase (presence, discovery, chat, file sharing) de juiste overlay kiezen en beargumenteren
+- NAT traversal als praktische randkwestie
 
 ## Korte eindintuitie
 

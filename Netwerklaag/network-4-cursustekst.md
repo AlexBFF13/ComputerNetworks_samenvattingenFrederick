@@ -232,6 +232,64 @@ Het idee is:
 
 Zo kan je het netwerk logisch opsplitsen zonder dat je voor elk stukje compleet nieuwe publieke adresblokken nodig hebt.
 
+### Methode voor subnettingberekeningen
+
+Voor elk subnet kan je systematisch het volgende berekenen:
+
+```
+1. Gegeven: IP-adres + CIDR-prefix /n
+2. Subnetmasker:       eerste n bits = 1, rest = 0
+3. Netwerkadres:       IP AND subnetmasker (alle hostbits op 0)
+4. Broadcastadres:     netwerkadres met alle hostbits op 1
+5. Eerste bruikbare host: netwerkadres + 1
+6. Laatste bruikbare host: broadcastadres - 1
+7. Aantal bruikbare hosts: 2^(32-n) - 2
+```
+
+### Rekenvoorbeeld 1: 192.168.5.130/25
+
+- Prefixlengte: /25, dus 25 netwerkbits, 7 hostbits
+- Subnetmasker: `255.255.255.128`
+- Netwerkadres: `192.168.5.128` (130 AND 128 = 128)
+- Broadcastadres: `192.168.5.255` (128 + 127 = 255, alle 7 hostbits op 1)
+- Hostbereik: `192.168.5.129` tot `192.168.5.254`
+- Aantal hosts: 2^7 - 2 = **126**
+
+### Rekenvoorbeeld 2: 10.0.12.45/22
+
+- Prefixlengte: /22, dus 22 netwerkbits, 10 hostbits
+- Subnetmasker: `255.255.252.0`
+- Netwerkadres: `10.0.12.0` (12 AND 252 = 12)
+- Broadcastadres: `10.0.15.255` (12 + 3 = 15 in derde octet, 255 in vierde)
+- Hostbereik: `10.0.12.1` tot `10.0.15.254`
+- Aantal hosts: 2^10 - 2 = **1022**
+
+### Adrestype herkennen
+
+| Adres | Type | Hoe herkennen |
+| --- | --- | --- |
+| `192.168.x.x` | Prive (RFC 1918) | Range `192.168.0.0/16` |
+| `10.x.x.x` | Prive (RFC 1918) | Range `10.0.0.0/8` |
+| `172.16.x.x` tot `172.31.x.x` | Prive (RFC 1918) | Range `172.16.0.0/12` |
+| `127.x.x.x` | Loopback | Range `127.0.0.0/8` |
+| `169.254.x.x` | Link-local (APIPA) | Range `169.254.0.0/16` |
+| `224.x.x.x` tot `239.x.x.x` | Multicast | Range `224.0.0.0/4` |
+| `255.255.255.255` | Limited broadcast | Alle bits op 1 |
+| Alle hostbits op 1 | Directed broadcast | Broadcastadres van een specifiek subnet |
+| Alle hostbits op 0 | Netwerkadres | Identificeert het subnet zelf |
+
+### Zelfde subnet?
+
+Twee hosts zitten in hetzelfde subnet als en slechts als:
+
+`(IP_1 AND subnetmasker) == (IP_2 AND subnetmasker)`
+
+Als ze in hetzelfde subnet zitten, communiceren ze rechtstreeks via ARP. Als ze in een ander subnet zitten, sturen ze het packet naar de **default gateway** (router).
+
+### belangrijk voor examen
+
+Je moet snel een **broadcastadres**, **hostbereik** en **aantal hosts** kunnen berekenen voor een gegeven IP/CIDR. Oefen ook het herkennen van adrestypes (prive, loopback, multicast, broadcast).
+
 ## Klassengebaseerde adressering en het probleem daarvan
 
 Oorspronkelijk werkte IPv4 met vaste klassen:
@@ -350,16 +408,42 @@ De slides zijn hier terecht kritisch. NAT werkt praktisch heel goed, maar botst 
 
 Belangrijke problemen:
 
-1. NAT verbreekt het idee van één adres per interface.
+1. NAT verbreekt het idee van een adres per interface.
 2. NAT breekt het **end-to-end model**.
 3. NAT is in de praktijk connection-oriented.
 4. NAT maakt de lagen minder netjes.
 5. NAT werkt vooral goed voor TCP en UDP.
 6. NAT heeft moeite met protocollen die IP-adressen in de payload verstoppen.
 
+### NAT-problemen op de applicatielaag (examenfavoriet)
+
+NAT herschrijft IP-adressen en poorten in de IP/TCP/UDP-headers, maar **niet** in de applicatie-payload. Protocollen die hun eigen adressen in de payload meesturen, breken daardoor:
+
+| Protocol | Probleem | Wat er misgaat |
+| --- | --- | --- |
+| **FTP (active mode)** | Client stuurt `PORT 192.168.1.10,p` in de payload | Server probeert inkomende verbinding naar prive-adres -- NAT blokkeert dit |
+| **SIP/VoIP** | IP-adres in SDP-payload voor media-uitwisseling | Peer belt naar prive-adres -- onbereikbaar |
+| **IPsec** | Versleutelt de volledige payload inclusief TCP/UDP-headers | NAT kan poorten niet meer herschrijven |
+| **Peer-to-peer** | Beide peers zitten achter NAT | Geen van beide kan een inkomende verbinding accepteren |
+
+### Inkomende verbindingen zijn fundamenteel geblokkeerd
+
+NAT houdt enkel state bij voor **uitgaande** verbindingen. Een extern toestel dat uit zichzelf een verbinding wil opzetten naar een intern toestel, vindt geen mapping in de NAT-tabel en wordt gedropt. Dit is problematisch voor servers, P2P, IoT-devices die van buitenaf bereikbaar moeten zijn.
+
+### Technieken om NAT te omzeilen
+
+| Techniek | Werking | Voorbeeld |
+| --- | --- | --- |
+| **Verbindingsrichting omdraaien** | Maak de verbinding uitgaand vanuit het interne toestel | FTP passive mode (PASV): server luistert, client initieert dataverbinding uitgaand |
+| **Relay/PUSH** | Een tussenliggend toestel dat voor beide partijen bereikbaar is, stuurt verkeer door | Gnutella PUSH: als de peer achter NAT zit, stuurt hij een PUSH-bericht via het overlay, waarna de peer zelf een uitgaande verbinding opzet |
+| **STUN** | Server helpt het toestel zijn publieke IP/poort te ontdekken | Client stuurt packet naar STUN-server, die het publieke adres terugmeldt; werkt niet bij symmetric NAT |
+| **TURN** | Volledige relay via een externe server | Als directe verbinding onmogelijk is, stuurt alle verkeer via de TURN-server |
+| **UPnP / NAT-PMP** | Het interne toestel vraagt de NAT-box om een port mapping aan te maken | Automatische port forwarding, maar vereist dat de NAT-box het ondersteunt |
+| **ALG (Application Layer Gateway)** | De NAT-box begrijpt het applicatieprotocol en herschrijft ook de payload | Sommige NAT-boxes herkennen FTP en passen het PORT-commando aan |
+
 ### belangrijk voor examen
 
-NAT is praktisch nuttig, maar theoretisch eigenlijk een **compromis** dat het end-to-end model en de nette layering van IP aantast.
+NAT is praktisch nuttig, maar theoretisch eigenlijk een **compromis** dat het end-to-end model en de nette layering van IP aantast. Je moet specifieke voorbeelden kunnen geven van protocollen die breken (FTP, SIP) en technieken om NAT te omzeilen (PASV, STUN/TURN, relay).
 
 ## Waarom IPv6 nodig werd
 
@@ -486,13 +570,83 @@ Je moet minstens het onderscheid kennen tussen:
 - **unique local**
 - **link local**
 
-## Interface Identifier
+## Interface Identifier en EUI-64
 
-In IPv6 wordt een deel van het adres gebruikt als **Interface Identifier (IID)**.
+In IPv6 wordt de onderste 64 bits van het adres gebruikt als **Interface Identifier (IID)**.
 
-De slides tonen hoe dat afgeleid kan worden uit EUI-64 of uit een MAC-adres. Dat is belangrijk omdat het laat zien hoe adressen deels automatisch gevormd kunnen worden.
+### Hoe wordt een IID afgeleid uit een MAC-adres (EUI-64)?
 
-Maar dat heeft ook privacygevolgen.
+Het proces werkt als volgt:
+
+1. Neem het 48-bit MAC-adres, bijvoorbeeld: `00:1A:2B:3C:4D:5E`
+2. Splits het in twee helften: `00:1A:2B` en `3C:4D:5E`
+3. Voeg `FF:FE` in het midden in: `00:1A:2B:FF:FE:3C:4D:5E`
+4. Flip het **U/L-bit** (bit 7 van het eerste byte, telt vanaf 0): `00` wordt `02`
+5. Resultaat: `021A:2BFF:FE3C:4D5E`
+
+Het volledige link-local adres wordt dan: `fe80::021a:2bff:fe3c:4d5e`
+
+### Herkenning van EUI-64 adressen
+
+Een IPv6-adres met `ff:fe` in het midden van de interface identifier is vrijwel zeker afgeleid via EUI-64. Dit is een handige examenvuistregel.
+
+## IPv6 autoconfiguratie: SLAAC
+
+**SLAAC** (Stateless Address Autoconfiguration) is het mechanisme waarmee een IPv6-host **zonder server** een geldig adres kan configureren.
+
+### Het SLAAC-proces
+
+1. De host genereert een **link-local adres** op basis van zijn MAC-adres (via EUI-64)
+2. De host voert **Duplicate Address Detection (DAD)** uit via Neighbor Solicitation
+3. De host stuurt een **Router Solicitation** (RS) naar het all-routers multicast-adres
+4. Een router antwoordt met een **Router Advertisement** (RA) dat het netwerkprefix bevat
+5. De host combineert het ontvangen prefix (typisch /64) met zijn EUI-64 interface-ID
+6. Resultaat: een volledig, globaal routeerbaar IPv6-adres, zonder DHCP-server
+
+### Waarom SLAAC onveilig is: privacyproblemen
+
+SLAAC op basis van EUI-64 heeft drie ernstige privacyproblemen:
+
+1. **Permanente tracking over netwerken**: het MAC-adres is hardware-gebonden en verandert niet. Dezelfde interface-ID verschijnt op elk netwerk dat de host bezoekt. Een observer kan zo de bewegingen van een gebruiker volgen: thuis, op het werk, in een cafe -- overal dezelfde IID.
+
+2. **Adresvoorspelbaarheid**: als je iemands MAC-adres kent (bijvoorbeeld via ARP of Wi-Fi sniffing), kan je zijn IPv6-adres op elk willekeurig netwerk voorspellen. Je weet immers het prefix van het netwerk (uit de RA) en het interface-ID (uit het MAC-adres).
+
+3. **OUI-lekkage (fabrikantidentificatie)**: de eerste 24 bits van een MAC-adres vormen de OUI (Organizationally Unique Identifier), die de fabrikant identificeert. Via de IID in het IPv6-adres is dus af te leiden welk merk en type toestel iemand gebruikt (Apple, Samsung, Intel...).
+
+### Tegenmaatregelen
+
+| Techniek | Werking | Voordeel |
+| --- | --- | --- |
+| **RFC 4941 (Privacy Extensions)** | Genereert tijdelijke, willekeurige interface-ID's die periodiek roteren | Voorkomt tracking, maar oude adressen blijven tijdelijk geldig |
+| **RFC 7217 (Opaque IID)** | Genereert een stabiel maar niet-afleidbaar adres per netwerk via een hash van prefix + secret | Stabiel adres (goed voor servers), maar niet afleidbaar uit MAC |
+| **MAC randomization** | Het toestel gebruikt een willekeurig MAC-adres per netwerk | Lost ook het L2-trackingprobleem op, niet enkel L3 |
+
+### Experiment ontwerpen om SLAAC-tracking aan te tonen
+
+Dit is een veelgestelde examenvraag. Een mogelijk experiment:
+
+1. **Setup**: een laptop verbindt achtereenvolgens met drie verschillende Wi-Fi-netwerken (thuis, universiteit, cafe)
+2. **Meting**: op elk netwerk capture je het IPv6-verkeer van de laptop met Wireshark
+3. **Analyse**: vergelijk de interface-ID's in de source-adressen
+4. **Verwacht resultaat zonder privacy extensions**: dezelfde interface-ID op alle drie netwerken, gecombineerd met verschillende prefixen
+5. **Verwacht resultaat met RFC 4941**: verschillende, willekeurige interface-ID's op elk netwerk (en zelfs wisselend in de tijd)
+6. **Conclusie**: zonder privacy extensions is cross-network tracking triviaal; met privacy extensions is het veel moeilijker
+
+### SLAAC vs DHCPv6
+
+| Eigenschap | SLAAC | DHCPv6 |
+| --- | --- | --- |
+| **Server nodig** | Nee (serverloos) | Ja (DHCPv6-server) |
+| **Adrestoewijzing** | Host berekent zelf op basis van prefix + IID | Server wijst adres toe |
+| **Privacy** | Slecht bij EUI-64 (MAC lekt), beter met RFC 4941/7217 | Beter: server kan willekeurige adressen toewijzen |
+| **Centrale controle/logging** | Geen: de beheerder weet niet welk adres een host kiest | Ja: de server houdt logs bij van wie welk adres heeft |
+| **Geschikt voor** | IoT, always-on devices, netwerken zonder infrastructuur | Managed enterprise-netwerken, netwerken met streng adresbeleid |
+| **DNS-integratie** | Moeilijker (host moet zelf registreren) | Eenvoudig (server kan DNS-entries bijwerken) |
+| **Configuratie extra info** | Beperkt (enkel prefix, gateway, MTU via RA) | Rijker (DNS-servers, NTP, domein, etc.) |
+
+### belangrijk voor examen
+
+SLAAC met EUI-64 is onveilig omdat het MAC-adres in het IPv6-adres lekt, waardoor **permanente tracking** over netwerken mogelijk is. RFC 4941 (tijdelijke adressen) en RFC 7217 (opaque IID's) zijn de belangrijkste tegenmaatregelen. Je moet het verschil met DHCPv6 kunnen uitleggen.
 
 ## Meerdere adressen per node
 
@@ -546,6 +700,60 @@ Omdat checks al elders gebeuren en men routers niet op elke hop opnieuw headerch
 ### belangrijk voor examen
 
 De IPv6-header is **vast 40 bytes**, en veel complexiteit uit IPv4 is verplaatst naar **extension headers** of verwijderd.
+
+## IoT en de IP stack: IPv4 vs IPv6 voor constrained devices
+
+Dit is een examentopic dat de link legt tussen IP-adressering en de uitdagingen van IoT-netwerken op basis van IEEE 802.15.4 (Zigbee, Thread) en vergelijkbare technologieen.
+
+### Het probleem: 802.15.4 heeft kleine frames
+
+IEEE 802.15.4 heeft een maximale framegrootte van slechts **127 bytes**. Dat maakt standaard IP-headers problematisch: een IPv6-header alleen al is 40 bytes, wat bijna een derde van het frame inneemt.
+
+### IPv4 vs IPv6 voor IoT
+
+| Eigenschap | IPv4 | IPv6 |
+| --- | --- | --- |
+| **Headergrootte** | 20-60 bytes (variabel) | 40 bytes (vast) |
+| **Adresruimte** | 32-bit, uitgeput, vereist NAT | 128-bit, meer dan voldoende voor miljarden IoT-devices |
+| **Autoconfiguratie** | DHCP (vereist een server) | SLAAC (serverloos, ideaal voor mesh) |
+| **End-to-end** | NAT breekt directe machine-to-machine communicatie | Geen NAT nodig, elk device is direct bereikbaar |
+| **Fragmentatie** | Door routers (duur, complex) | Verboden door routers; minimale MTU 1280 bytes |
+
+**Winnaar: IPv6**, maar niet in ongewijzigde vorm. De 40-byte header past niet efficient in een 127-byte frame.
+
+### 6LoWPAN als adaptielaag
+
+**6LoWPAN** (IPv6 over Low-Power Wireless Personal Area Networks) is de oplossing. Het is een adaptielaag tussen IPv6 en 802.15.4 die:
+
+- De **40-byte IPv6-header comprimeert naar 2-3 bytes**: link-local prefix en EUI-64 interface-ID zijn afleidbaar uit de 802.15.4-header en hoeven niet meegestuurd te worden
+- **Fragmentatie afhandelt** over meerdere 802.15.4-frames met een eigen fragmentatieheader (niet de IPv6-fragmentatie, die verboden is door routers)
+- **SLAAC** mogelijk maakt: serverloze mesh-netwerken zonder DHCP-infrastructuur
+
+### Waarom niet gewoon IPv4 met kleinere header?
+
+- **NAT** breekt machine-to-machine communicatie, wat essentieel is voor IoT (sensoren die direct met actuatoren communiceren)
+- **DHCP** vereist infrastructuur die in veel IoT-scenario's niet beschikbaar is
+- Het **adresruimteprobleem** maakt IPv4 onhoudbaar voor miljarden IoT-devices
+- IPv4 heeft geen equivalent van SLAAC voor serverloze autoconfiguratie
+
+### Voor- en nadelen van IP op 802.15.4
+
+**Voordelen:**
+
+- **Interoperabiliteit**: IoT-devices communiceren direct met het internet, zonder gateways die vertalen
+- **End-to-end**: met IPv6 is elk device direct adresseerbaar, wat cloud-integratie en remote management vereenvoudigt
+- **Bestaande tools**: DNS, HTTP/CoAP, standaard security-protocollen (DTLS) werken op IP
+
+**Nadelen:**
+
+- **Header-overhead**: zelfs met 6LoWPAN-compressie nemen headers een significant deel van het kleine frame in
+- **Complexiteit**: een volledige IP-stack op een microcontroller met 4 KB RAM is uitdagend
+- **Energieverbruik**: grotere headers en meer protocolverwerking kosten energie op batterij-gevoede devices
+- **Fragmentatie**: IPv6's minimale MTU van 1280 bytes vereist fragmentatie over meerdere 802.15.4-frames, wat gevoelig is voor packetverlies
+
+### belangrijk voor examen
+
+IPv6 is beter dan IPv4 voor IoT vanwege SLAAC (serverloos), voldoende adressen (geen NAT nodig) en end-to-end bereikbaarheid. 6LoWPAN maakt IPv6 bruikbaar op 802.15.4 door headercompressie. Je moet de voor- en nadelen van IP op constrained networks kunnen benoemen.
 
 ## ICMP
 
@@ -681,14 +889,23 @@ Je ziet:
 - Wat een **NSAP** is en waarom IP-adressen aan interfaces hangen
 - Hoe **prefixen**, **subnetting** en **CIDR** werken
 - Wat **longest prefix match** betekent
+- **Broadcastadres berekenen**, hostbereik bepalen en adrestypes herkennen
 - De private IPv4-adresranges
 - Hoe **DHCP** en **leases** werken
 - Hoe **NAT** ongeveer werkt en waarom het problematisch is
+- Welke **applicatieprotocollen breken** door NAT (FTP, SIP) en welke **traversal-technieken** bestaan (PASV, STUN/TURN, relay)
 - De grote verschillen tussen **IPv4** en **IPv6**
 - Hoe je een **IPv6-adres** noteert en verkort
 - Het verschil tussen **global unicast**, **unique local** en **link local**
 - Waarom IPv6 geen klassieke **broadcast** gebruikt
+- Hoe **EUI-64** een interface-ID afleidt uit een MAC-adres
+- Waarom **SLAAC** met EUI-64 onveilig is (tracking, OUI-lekkage) en welke tegenmaatregelen bestaan (RFC 4941, RFC 7217)
+- Het verschil tussen **SLAAC** en **DHCPv6**
+- Waarom **IPv6 beter** is dan IPv4 voor IoT (SLAAC, geen NAT, adresruimte)
+- Wat **6LoWPAN** doet (headercompressie, fragmentatie voor 802.15.4)
+- De voor- en nadelen van **IP op constrained networks**
 - De rol van **ICMP** en hoe **traceroute** werkt
+- De rol van **ICMP bij path MTU discovery** (Type 3, Code 4)
 - Hoe **ARP** een IP-adres naar een MAC-adres vertaalt
 
 ## Korte eindintuitie

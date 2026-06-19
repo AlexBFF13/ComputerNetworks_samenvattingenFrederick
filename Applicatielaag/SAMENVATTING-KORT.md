@@ -2,6 +2,31 @@
 
 De applicatielaag is de bovenste laag: hier worden ruwe TCP/UDP-verbindingen vertaald naar concrete diensten (web, mail, bestanden, P2P). Elk protocol kiest zijn eigen stijl van commando's, sessiebeheer en (on)veiligheid, maar leunt voor transport vrijwel altijd op **TCP** (betrouwbaar) of **UDP** (lichtgewicht, geen setup nodig).
 
+## OSI / TCP-IP / Tanenbaum stacks
+
+| Laag | OSI | TCP/IP | Tanenbaum |
+|---|---|---|---|
+| 7 | Application | Application | Application |
+| 6 | Presentation | ↑ | ↑ |
+| 5 | Session | ↑ | ↑ |
+| 4 | Transport | Transport | Transport |
+| 3 | Network | Internet | Network |
+| 2 | Data Link | Network Access | Data Link |
+| 1 | Physical | ↑ | Physical |
+
+- **Lastige gevallen**: DHCP = applicatielaag (UDP broadcast); RTP = applicatielaag (bovenop UDP); OSPF = netwerklaag (direct over IP, geen TCP/UDP).
+- OSI = referentiemodel (7 lagen, nooit volledig geïmplementeerd), TCP/IP = praktisch model (4 lagen, succesvol gedeployed).
+
+## UDP-applicaties: waarom geen TCP?
+
+| App | Waarom UDP |
+|---|---|
+| **DNS** | Kleine queries, stateless, anycast-compatibel; TCP fallback bij grote antwoorden |
+| **DHCP** | Client heeft nog geen IP → TCP handshake onmogelijk; broadcast nodig |
+| **Wake-on-LAN** | Doelhost is uit → kan geen TCP-verbinding opzetten; magic packet = broadcast |
+
+Rode draad: TCP vereist een werkende verbinding aan beide kanten — dat is precies wat bij deze apps nog niet bestaat.
+
 ## Remote login: Telnet vs SSH
 
 - **Telnet** (poort 23, TCP): stuurt commando's en tekst in **plaintext**, geen serverauthenticatie. Fases: connection management → optional negotiation → control → data transfer. Onveilig, maar nog steeds bruikbaar als **debugtool** voor tekstuele protocollen boven TCP (SMTP, HTTP).
@@ -87,12 +112,25 @@ Een **overlay-netwerk** is een logisch netwerk boven peers — 1 overlay-hop kan
 - **Napster**: centrale **indexering**, gedistribueerde bestandsuitwisseling → single point of failure/attack/aanklacht (werd gesloten).
 - **Gnutella 0.4**: unstructured decentralized overlay, **flooding** met `PING`/`PONG` (peer discovery) en `QUERY`/`QUERYHIT` (search), TTL beperkt de flood. `PUSH` helpt peers achter een firewall. Bestandstransfer zelf via **HTTP**. Probleem: **search horizon** (te lage TTL = te weinig gevonden, te hoge TTL = netwerk overspoeld).
 - **Gnutella 0.6**: **super-node**-architectuur — **ultrapeers** (sterke nodes: discovery, routing, indices van leafs) en **leaf nodes** (verbinden met 1 ultrapeer, minder werk).
+  - **Monitoring/spying**: als gewone peer zie je enkel directe buren; als ultrapeer ook leaf-queries. Met **onbeperkte resources** kan een adversary veel ultrapeers draaien en zo groot deel van het zoekverkeer observeren → trade-off schaalbaarheid vs anonimiteit.
 - **Chord (DHT)**: gestructureerde oplossing — consistente hashing (SHA-1) plaatst nodes/bestanden op een ring van 0..2^160-1, lookup in **O(log N)** hops via finger tables, gegarandeerd resultaat (i.p.v. TTL-onzekerheid bij Gnutella). Hashfunctie moet **uniform verdeeld** (geen hotspots) en **collision-vrij** zijn; "virtual nodes" helpen balans.
 - **BitTorrent**: gericht op **content distribution** (i.p.v. discovery zoals Gnutella of routing zoals Chord). Discovery via web (torrent-bestand) → **tracker** → **swarm**. Bestand in **chunks** met **SHA-1 hash** (integriteit + parallel downloaden). **Rarest first**: zeldzame chunks eerst verspreiden tegen bottlenecks. **Seeder** = peer met alle chunks; gewone peers zijn down- én uploader. **Tit-for-tat**: peers die niet bijdragen worden **choked** (tegen free-riding). Nieuwere versies gebruiken een **DHT (Kademlia)** i.p.v. trackers.
 
 ## TOR: privacy en onion routing
 
 **Onion routing**: bericht in meerdere encryptielagen, elke router pelt precies 1 laag af en kent alleen vorige/volgende hop — niet de volledige route, oorsprong, bestemming of inhoud. Client = **Onion Proxy** (SOCKS-interface, ontdekt routers via **directory server**, bouwt circuit). **Onion Routers** sturen verkeer door of zijn **exit node**. **Alle links versleuteld, behalve exit node → gewone internet** (daar is verkeer plaintext als het bv. HTTP is). Vaste **cell-grootte** (control cells vs relay cells) bemoeilijkt traffic analysis. Circuit wordt opgebouwd via `relay extend`; reverse path via **Circuit ID**. TOR beschermt vooral tegen **traffic analysis**, niet tegen een global passive adversary (timing-correlatie blijft mogelijk) — meer hops kan zelfs de kans op een gecompromitteerde node verhogen.
+
+**Wat kent elke node?**
+
+| | Bron-IP | Bestemming | Data | Vorige hop | Volgende hop |
+|---|---|---|---|---|---|
+| **Entry** | ja | nee | nee | — | ja |
+| **Middle** | nee | nee | nee | ja | ja |
+| **Exit** | nee | ja | ja (plaintext!) | ja | — |
+
+- **Minimaal 3 nodes**: bij 2 nodes kent één node zowel bron als bestemming → volledige deanonymisatie.
+- **Sybil attack**: aanvaller registreert veel nepnodes als TOR-relays → vergroot kans dat aanvaller entry én exit controleert → timing-correlatie.
+- **Spying met beperkte resources**: exit nodes loggen (ziet bestemmingen, niet bronnen). Met **onbeperkte resources** (state actor): globale timing-correlatie tussen entry en exit.
 
 ---
 

@@ -24,6 +24,94 @@ Dat is belangrijk om te onthouden:
 - de application layer spreekt in termen van commando’s, berichten, documenten en sessies
 - de lagere lagen zorgen ervoor dat bytes effectief van de ene machine naar de andere raken
 
+## De drie grote protocol-stacks: OSI, TCP/IP en Tanenbaum
+
+Op het examen wordt regelmatig gevraagd om de verschillende protocol-stacks te tekenen en protocollen op de juiste laag te plaatsen. Er bestaan drie belangrijke modellen.
+
+### Het OSI-model (7 lagen)
+
+Het **OSI-model** (Open Systems Interconnection) is een referentiemodel met zeven lagen:
+
+| Laag | Naam | Functie | Voorbeeld |
+|------|------|---------|-----------|
+| 7 | **Application** | Netwerkdiensten voor eindgebruikers | HTTP, SMTP, DNS, DHCP, FTP |
+| 6 | **Presentation** | Datarepresentatie, encryptie, compressie | SSL/TLS, JPEG, ASCII |
+| 5 | **Session** | Sessiebeheer, synchronisatie | RPC, NetBIOS |
+| 4 | **Transport** | End-to-end betrouwbaarheid, flow control | TCP, UDP |
+| 3 | **Network** | Routing, logische adressering | IP, ICMP, OSPF, BGP |
+| 2 | **Data Link** | Hop-to-hop levering, framing, MAC | Ethernet, 802.11, PPP |
+| 1 | **Physical** | Bits over het medium | Koper, glasvezel, radio |
+
+### Het TCP/IP-model (4 lagen)
+
+Het **TCP/IP-model** (ook wel het internetmodel) is pragmatischer en heeft slechts vier lagen:
+
+| Laag | Naam | Komt overeen met OSI | Voorbeeld |
+|------|------|---------------------|-----------|
+| 4 | **Application** | OSI 5+6+7 | HTTP, SMTP, DNS, FTP, SSH |
+| 3 | **Transport** | OSI 4 | TCP, UDP |
+| 2 | **Internet** | OSI 3 | IP, ICMP |
+| 1 | **Network Access** (Host-to-network) | OSI 1+2 | Ethernet, 802.11 |
+
+### Het Tanenbaum-model (5 lagen)
+
+Het model dat Tanenbaum in zijn boek gebruikt, is een **hybride** met vijf lagen. Het neemt de duidelijke scheiding van de onderste lagen uit OSI, maar voegt de bovenste drie OSI-lagen samen:
+
+| Laag | Naam | Voorbeeld |
+|------|------|-----------|
+| 5 | **Application** | HTTP, SMTP, DNS, DHCP, RTP |
+| 4 | **Transport** | TCP, UDP |
+| 3 | **Network** | IP, ICMP, OSPF, BGP |
+| 2 | **Data Link** | Ethernet, 802.11, PPP |
+| 1 | **Physical** | Koper, glasvezel, radio |
+
+### Protocollen op de juiste laag plaatsen
+
+Een typische examenvraag is: "Op welke laag zit protocol X?" Lastige gevallen:
+
+- **DHCP**: zit op de **application layer**, maar gebruikt UDP (transport) en heeft invloed op de network layer (IP-toewijzing). Het is een applicatieprotocol dat configuratiegegevens uitwisselt.
+- **RTP** (Real-time Transport Protocol): zit in het **Tanenbaum-model op de application layer** (laag 5), omdat het bovenop UDP draait. In de praktijk voegt RTP transport-achtige functies toe (sequencing, timestamps), maar het is geen deel van de transportlaag zelf. Het zit in **user space**, niet in de kernel.
+- **DNS**: application layer protocol, ook al is het een ondersteunend protocol dat door andere applicaties (HTTP, SMTP) wordt aangeroepen.
+- **OSPF**: draait direct op IP (protocol 89), dus het zit op de **network layer**, niet op de transport layer.
+- **ARP**: zit tussen de network layer en de data link layer. In het TCP/IP-model is het onderdeel van de Network Access laag.
+
+### belangrijk voor examen
+
+Je moet de drie stacks kunnen tekenen en uitleggen waarom ze verschillen. Het OSI-model is een **referentiemodel** (nooit echt geimplementeerd als protocol-stack), terwijl TCP/IP een **praktisch model** is dat het internet aandrijft. Tanenbaum’s model is een didactisch compromis.
+
+De kernvraag is altijd: "op welke laag zit dit protocol, en waarom?" Het antwoord hangt af van welk model je gebruikt.
+
+## Applicaties die UDP gebruiken (en waarom geen TCP)
+
+Een terugkerend examenvraagtype is: "Noem drie applicaties die UDP gebruiken en leg uit waarom ze geen TCP gebruiken." Drie belangrijke voorbeelden:
+
+### 1. DNS
+
+DNS-queries zijn **klein** (typisch < 512 bytes), **kort** (one-shot vraag-antwoord) en vaak **naar meerdere servers** gericht. TCP’s three-way handshake zou per lookup drie extra berichten vereisen, wat de latency verdrievoudigt voor een simpele naamresolutie. Bovendien maakt UDP **anycast** mogelijk: meerdere fysieke servers delen een IP-adres, en het dichtstbijzijnde exemplaar antwoordt. Bij te grote antwoorden valt DNS alsnog terug op TCP.
+
+### 2. DHCP
+
+DHCP **kan fundamenteel niet over TCP** werken. TCP vereist een three-way handshake met een geldig bron-IP en bestemmings-IP. Tijdens DHCPDISCOVER heeft de client **geen van beide**: geen eigen IP-adres, en hij kent het IP-adres van de DHCP-server niet. UDP laat toe om vanuit `0.0.0.0` naar `255.255.255.255` te broadcasten zonder voorafgaande connectie-state.
+
+### 3. Wake-on-LAN (WoL)
+
+Wake-on-LAN stuurt een **magic packet** als UDP-broadcast om een uitgeschakelde computer op te starten. TCP is hier fundamenteel onmogelijk omdat de doelmachine **uitgeschakeld** is en dus geen TCP-handshake kan uitvoeren. Het magic packet moet als broadcast aankomen op de netwerkinterface van de slapende machine.
+
+### Andere voorbeelden
+
+- **RTP** (Real-time Transport Protocol): voor live audio/video is verlies acceptabel maar vertraging niet. TCP’s retransmissie en congestion control zouden de stream vertragen.
+- **SNMP** (Simple Network Management Protocol): moet ook werken als het netwerk overbelast is; TCP’s congestion control zou dan net het beheerverkeer afremmen.
+- **TFTP** (Trivial File Transfer Protocol): heel simpel protocol voor boot-images ophalen, zonder de complexiteit van TCP.
+
+### De rode draad
+
+UDP-applicaties kiezen bewust voor UDP wanneer:
+
+- **TCP-setup onmogelijk is** (geen geldig IP, machine uit)
+- **snelheid belangrijker is dan betrouwbaarheid** (real-time media)
+- **berichten klein en one-shot zijn** (DNS, SNMP)
+- **broadcast nodig is** (DHCP, WoL)
+
 ## Telnet
 
 **Telnet** is een van de oudste internettoepassingen. Het werd in de vroege internetperiode gebruikt voor **remote terminal access**: een gebruiker op de ene machine logt in op een andere machine en werkt daar alsof hij lokaal achter de terminal zit.
@@ -443,35 +531,55 @@ Een webpagina bevat vaak veel embedded objects:
 
 Als je voor elk object een nieuwe TCP-verbinding moet opzetten, is dat inefficiënt:
 
-- extra round trips
+- extra round trips voor elke TCP three-way handshake
 - telkens nieuwe TCP-opstart
-- trager door congestion control die opnieuw van klein begint
+- trager door **slow start** die bij elke nieuwe verbinding opnieuw van een klein congestion window begint
 
 Dus HTTP 1.0 werkt, maar is nogal zwaar voor moderne pagina’s.
 
+### Het concrete probleem
+
+Stel: een pagina heeft 1 HTML-bestand en 10 afbeeldingen. Met HTTP 1.0 heb je **11 afzonderlijke TCP-verbindingen** nodig. Elk daarvan kost:
+
+1. TCP three-way handshake (1,5 RTT)
+2. HTTP request + response
+3. TCP teardown
+
+Dat is 11 keer de setup-overhead, en 11 keer begint TCP’s congestion window opnieuw klein (slow start).
+
 ## HTTP 1.1
 
-**HTTP 1.1** bracht een grote verbetering:
+**HTTP 1.1** bracht twee grote verbeteringen:
 
-- **persistent TCP connections**
+### 1. Persistent connections
 
-Daardoor hoef je niet voor elk object opnieuw een volledige nieuwe TCP-verbinding op te zetten.
+Daardoor hoef je niet voor elk object opnieuw een volledige nieuwe TCP-verbinding op te zetten. De verbinding blijft open na de eerste request/response, en volgende objecten worden over **dezelfde TCP-verbinding** opgehaald.
 
-Dat verlaagt overhead en maakt ophalen van meerdere objecten efficiënter.
+Voordelen:
 
-## Pipelining
+- slechts een TCP-handshake voor meerdere objecten
+- het congestion window hoeft niet telkens opnieuw te groeien
+- minder overhead op de server (minder sockets, minder state)
 
-Een volgende optimalisatie in HTTP 1.1 is **pipelining**.
+### 2. Pipelining
 
 Daarbij wacht je niet tot het ene object volledig is afgehandeld voordat je al de volgende requests uitstuurt. Je kan dus meerdere requests sneller achter elkaar door dezelfde verbinding sturen.
 
-### Wanneer werkt dat minder goed?
+### Wanneer is het voordeel van HTTP 1.1 het grootst?
 
-De slide stelt de vraag wanneer pipelining niet gebruikt kan worden. Het algemene idee is dat dit lastig wordt wanneer de volgorde of afhankelijkheden tussen resources niet toelaten dat je requests al vroeg uitstuurt, of wanneer de onderliggende verwerking het voordeel beperkt.
+Het voordeel is het grootst bij pagina’s met **veel kleine embedded objecten**. Hoe meer objecten, hoe meer TCP-handshakes je uitspaart. Bij een pagina met slechts een object maakt het weinig verschil.
 
-De essentie is:
+### Wanneer werkt pipelining minder goed?
 
-pipelining helpt alleen als je voldoende vroeg weet welke bijkomende objecten je nodig hebt en als de server/browser die stroom nuttig kan verwerken.
+Pipelining heeft beperkingen:
+
+- **Head-of-line blocking**: als het eerste antwoord traag is, blokkeren alle volgende antwoorden (de server moet in volgorde antwoorden)
+- Als de browser pas **na het parsen van de HTML** weet welke bijkomende objecten nodig zijn, kan hij die niet vooraf al pipelinen
+- Sommige servers en proxies ondersteunen pipelining niet correct
+
+### Cross-layer inzicht (Hughes-favoriet)
+
+HTTP/1.0 is **connectionless/stateless** op de applicatielaag, maar draait over **connection-oriented** TCP. Dit lijkt tegenstrijdig, maar het is een belangrijk examenpunt: een applicatieprotocol kan connectionless gedrag vertonen terwijl het transportprotocol connection-oriented is. HTTP opent en sluit verbindingen, maar onthoudt zelf geen sessie-state tussen requests.
 
 ## HTTP/2
 
@@ -504,23 +612,57 @@ Het is dus geen generiek documentprotocol zoals HTTP, maar specifiek een bestand
 
 ## Twee TCP-poorten bij FTP
 
-Een opvallend kenmerk van FTP is dat het **twee TCP-poorten** gebruikt:
+Een opvallend kenmerk van FTP is dat het **twee TCP-verbindingen** gebruikt:
 
-- één voor **control**
-- één voor **data transfer**
+- poort **21** voor **control** (persistent voor de hele sessie)
+- poort **20** voor **data transfer** (wordt per bestandsoverdracht opgezet en weer afgebroken)
 
-De slides vermelden:
+Het belangrijkste conceptuele punt is dat FTP **control en data splitst** over aparte kanalen.
 
-- poort 20 voor control
-- poort 21 voor data
+De controlverbinding gebruikt een Telnet-achtig commandokanaal (NVT) om de sessie te regelen.
 
-Het belangrijkste conceptuele punt is vooral dat FTP **control en data splitst** over aparte kanalen.
+### Waarom twee verbindingen?
 
-De controlverbinding gebruikt een Telnet-achtig commandokanaal om de sessie te regelen.
+De scheiding heeft een praktisch voordeel: als je een groot bestand aan het downloaden bent en een **abort-commando** wilt sturen, wordt dat commando niet geblokkeerd door een volgelopen databuffer. Het controlekanaal blijft altijd responsief, onafhankelijk van de datatransfer.
 
-### waarom is dat speciaal?
+Bij HTTP lopen control en data door dezelfde verbinding, wat dit soort situaties lastiger maakt.
 
-Omdat veel andere protocollen, zoals HTTP, control en data gewoon binnen dezelfde verbinding laten lopen. FTP kiest dus expliciet voor een tweekanaalsmodel.
+## FTP en het NAT-probleem
+
+Dit is een klassiek examenvraagstuk. Er zijn twee modi in FTP:
+
+### Active FTP (standaard)
+
+In active mode vertelt de client aan de server: "Maak verbinding met mij op dit IP-adres en deze poort." De client stuurt een `PORT`-commando met zijn eigen IP en poortnummer.
+
+Het probleem achter NAT:
+
+```text
+Client (prive 192.168.1.10) --> NAT --> Server (publiek 203.0.113.5)
+1. Client -> Server:21 (control) -- uitgaand, NAT maakt mapping
+2. Client stuurt PORT 192.168.1.10,p  (prive-adres in payload!)
+3. Server -> 192.168.1.10:p (inkomend) -- NAT heeft geen mapping
+   --> packet gedropt --> data mislukt
+```
+
+Het kernprobleem is tweeledig:
+
+- NAT houdt enkel state bij voor **uitgaande** verbindingen. De server probeert een **inkomende** verbinding op te zetten, maar NAT heeft daar geen mapping voor.
+- FTP embedt **IP-adressen in de applicatie-payload**. NAT herschrijft IP-headers, maar kijkt normaal niet in de payload.
+
+### Passive FTP (PASV) als oplossing
+
+Bij passive mode draait de logica om:
+
+1. De client stuurt `PASV` via het controlekanaal
+2. De server opent een luisterpoort en stuurt het adres terug
+3. De **client** initieert de dataverbinding naar de server (uitgaand)
+
+Nu zijn **beide verbindingen** (control en data) uitgaand vanuit de client. NAT laat dit gewoon door, want NAT maakt automatisch mappings voor uitgaande verbindingen.
+
+### belangrijk voor examen
+
+FTP's active mode faalt achter NAT omdat de server een inkomende verbinding probeert op te zetten. Passive FTP lost dit op door de client beide verbindingen te laten initieren. Dit is een concreet voorbeeld van het bredere NAT-probleem: protocollen die IP-adressen in hun payload embedden, werken niet goed met NAT.
 
 ## NVT en common FTP commands
 
@@ -571,6 +713,9 @@ Door die voorbeelden zie je goed wat de application layer doet:
 
 ### belangrijk voor examen
 
+- De drie protocol-stacks **(OSI, TCP/IP, Tanenbaum)** kunnen tekenen en protocollen op de juiste laag plaatsen
+- Lastige gevallen: DHCP (application layer), RTP (application layer in Tanenbaum), OSPF (network layer, direct op IP)
+- Drie applicaties die **UDP** gebruiken (DNS, DHCP, Wake-on-LAN) en waarom ze geen TCP gebruiken
 - Waarom Telnet historisch belangrijk is
 - Waarom Telnet onveilig is
 - Hoe SSH dat oplost met encryptie en authenticatie
@@ -582,9 +727,12 @@ Door die voorbeelden zie je goed wat de application layer doet:
 - Wat **HTML** doet
 - Waarom HTTP **stateless** genoemd wordt
 - De belangrijkste HTTP-methodes
-- Waarom **HTTP 1.0** inefficiënt is
+- Waarom **HTTP 1.0** inefficiënt is (nieuwe TCP-verbinding per object, slow start telkens opnieuw)
 - Wat **persistent connections**, **pipelining** en **HTTP/2 multiplexing** verbeteren
-- Waarom FTP twee verbindingen gebruikt
+- Het cross-layer inzicht: HTTP is connectionless/stateless op applicatielaag, maar draait over connection-oriented TCP
+- Wanneer het voordeel van HTTP 1.1 het grootst is (veel kleine embedded objecten)
+- Waarom FTP twee verbindingen gebruikt (control apart van data)
+- Waarom **active FTP faalt achter NAT** en hoe **passive FTP (PASV)** dat oplost
 - De rol van typische FTP-commando’s zoals `USER`, `PASS`, `PASV`, `RETR` en `QUIT`
 
 ## Korte eindintuitie

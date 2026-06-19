@@ -327,9 +327,39 @@ enzovoort, tot "infinity".
 
 Geen router weet in dat model of hij **zelf** al in het voorgestelde pad zit.
 
+### Concrete illustratie
+
+Stel drie routers A, B en C in lijn: A--B--C. Router A is verbonden met een bestemming X via kost 1. B leert: "via A naar X, kost 2". C leert: "via B naar X, kost 3".
+
+Nu valt de link A--X weg:
+
+1. A zet zijn kost naar X op oneindig
+2. Maar B adverteert nog "naar X, kost 2" (verouderde info)
+3. A denkt: "via B kost 3" en neemt dat aan
+4. B krijgt update van A: "naar X, kost 3", dus B update naar 4
+5. A krijgt update: kost 4 via B, update naar 5
+6. Dit herhaalt tot de maximum metric bereikt wordt
+
+### Klassieke mitigaties
+
+| Techniek | Werking | Lost het op? |
+| --- | --- | --- |
+| **Split horizon** | Adverteer een route niet terug naar de buur van wie je hem geleerd hebt | Niet volledig (faalt bij 3+ nodes in lus) |
+| **Poison reverse** | Adverteer de route terug met kost = oneindig | Beter, maar faalt ook bij grotere lussen |
+| **Maximum metric** | Definieer een maximum (bv. RIP: 16 = onbereikbaar) | Beperkt de duur, maar lost de lus zelf niet op |
+| **Hold-down timers** | Na verlies, weiger updates voor die bestemming gedurende een timer | Vertraagt convergentie |
+
+Geen van deze technieken lost count-to-infinity volledig op. Dat is fundamenteel de reden waarom link-state routing en AODV (met sequence numbers) ontwikkeld werden.
+
+### Hoe AODV count-to-infinity oplost
+
+AODV gebruikt **destination sequence numbers**. Elke route draagt een sequencenummer mee dat door de bestemming zelf wordt verhoogd. Een route met een **hoger** sequencenummer is altijd verser. Bij een linkuitval stuurt de bestemming (of de node die de uitval detecteert) een RERR met een verhoogd sequencenummer. Nodes met een verouderd (lager) sequencenummer verwerpen hun oude route **onmiddellijk** en starten geen lus meer.
+
+Dit werkt omdat sequence numbers een **globale tijdsordening** introduceren die distance vector normaal niet heeft.
+
 ### belangrijk voor examen
 
-Het count-to-infinity-probleem ontstaat omdat distance vector routers enkel **lokale informatie** zien en niet kunnen detecteren dat een vermeend pad eigenlijk cirkelvormig is.
+Het count-to-infinity-probleem ontstaat omdat distance vector routers enkel **lokale informatie** zien en niet kunnen detecteren dat een vermeend pad eigenlijk cirkelvormig is. AODV lost dit op via **destination sequence numbers** die verouderde routes onmiddellijk herkenbaar maken.
 
 ## Waarom link-state routing opkwam
 
@@ -586,7 +616,7 @@ Tot slot zie je dat ook de manier van afleveren belangrijk is:
 - Het **optimality principle** en het idee van een **sink tree**
 - Hoe **Dijkstra** in grote lijnen werkt
 - Hoe **Bellman-Ford** in grote lijnen werkt
-- Wat het **count-to-infinity-probleem** is en waarom het ontstaat
+- Wat het **count-to-infinity-probleem** is, waarom het ontstaat, welke **mitigaties** bestaan (split horizon, poison reverse, maximum metric) en hoe **AODV** het oplost via destination sequence numbers
 - De vijf stappen van **link-state routing**
 - Waarom flooding TTL, sequence numbers en age nodig heeft
 - Waarom **hierarchical routing** nodig is en welke trade-off erbij hoort

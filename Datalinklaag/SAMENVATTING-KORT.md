@@ -35,8 +35,9 @@ Eén gedeeld medium, wie mag wanneer zenden?
 
 ### Random access protocollen
 
-- **Pure ALOHA**: zend wanneer je wilt; bij collision → **random** wachttijd (randomisatie breekt symmetrie). Simpel maar inefficiënt.
-- **Slotted ALOHA**: zenden mag enkel op slotgrenzen → minder/strakker begrensde collisions, maar vereist **synchronisatie**.
+- **Pure ALOHA**: zend wanneer je wilt; bij collision → **random** wachttijd (randomisatie breekt symmetrie). Vulnerable period = **2T**, max throughput **18%** (S = G·e^(-2G)).
+- **Slotted ALOHA**: zenden mag enkel op slotgrenzen → vulnerable period = **1T**, max throughput **37%** (S = G·e^(-G)). Vereist **synchronisatie**.
+- **Kan Pure ALOHA op 802.11?** Fysiek ja, maar zinloos: wifi heeft carrier sense, en ALOHA's blinde zenden verspilt het voordeel van CSMA.
 - **CSMA**: luister eerst (carrier sense) voor je zendt. Lost collisions niet volledig op door propagatiedelay en **hidden terminals**.
 
 | Variant | Gedrag als kanaal vrij is |
@@ -83,6 +84,25 @@ Wifi kan tijdens zenden niet betrouwbaar luisteren (eigen signaal overheerst) �
 - **Frame**: uitgebreidere header dan Ethernet — frame control (type/subtype, **to DS/from DS**, more fragments, retry, power management...), **fragmentatie** (kleinere stukken bij hoge foutkans), **sequence number** (duplicaten/retries), checksum.
 - **Service-types**: Ethernet = **unacknowledged connectionless**; 802.11 = **acknowledged connectionless**.
 
+## Stop-and-Wait analyse
+
+**η = 1 / (1 + 2a)** met a = propagatievertraging / transmissietijd. Goed bij **a ≈ 0** (kort Ethernet, LoRa — trage link, korte afstand). Rampzalig bij hoge a (GEO-satelliet: a ≈ 956 → η ≈ 0,05%).
+
+## MAC-protocollen bij AODV
+
+| Goed | Slecht |
+|---|---|
+| **CSMA/CA** (asynchroon, gedecentraliseerd) | **TSMP** (centrale manager = bottleneck, synchronisatie onpraktisch) |
+| **B-MAC** (LPL, event-driven, schaalbaar) | **Pure ALOHA** (geen carrier sense, hoog verliespercentage) |
+
+## LoRa MAC
+
+LoRa = lange afstand, laag vermogen, maar **Pure ALOHA-achtig** → slecht bij hoge densiteit (collisions). Verbeteringen: TDMA-slots, channel hopping, ADR (adaptive data rate). Hidden terminal is een groot probleem door groot bereik.
+
+## Channel hopping (TSMP)
+
+Voordelen: interferentiebestendigheid (storing treft slechts 1 frequentie), multipath fading mitigatie, beveiliging (moeilijker te jammen), eerlijke spectrum-verdeling.
+
 ## Belangrijke formules/getallen
 
 - Minimum Ethernet frame: **512 bits**, vereiste `T_transmissie ≥ 2×T_propagatie`.
@@ -95,7 +115,7 @@ Wifi kan tijdens zenden niet betrouwbaar luisteren (eigen signaal overheerst) �
 
 - **Carrier sense lost hidden/exposed terminal niet op** — dit is een fundamenteel, herhaald examenpunt: lokaal "ik hoor niets" ≠ "kanaal is vrij".
 - **RTS/CTS lost hidden terminal op, maar exposed terminal niet** (maakt het zelfs iets erger) — en is enkel voordelig bij grote frames door de overhead.
-- **Hubs vs switches**: hub = geen nieuw collision domain, limiet wordt bij hogere snelheid strenger (Fast Ethernet+hub: ~100-200m). Switch + full-duplex: collisions fysiek onmogelijk, CSMA/CD uit, enige limiet = attenuatie (~100m).
+- **Hubs vs switches**: hub = geen nieuw collision domain, limiet wordt bij hogere snelheid strenger (Fast Ethernet+hub: ~100-200m). Switch + full-duplex: collisions fysiek onmogelijk, CSMA/CD uit, enige limiet = attenuatie (~100m). **Wanneer hub beter?** Protocol-analyse/sniffing (promiscuous mode ziet al het verkeer), lab/onderwijs, en goedkoper voor klein netwerk zonder privacy-eisen.
 - **Packet loss op wifi ≠ congestie**: TCP (Tahoe/Reno) interpreteert verlies als congestiesignaal en halveert het congestion window, maar op 802.11 kan verlies komen van interferentie, hidden terminals, fading of uitgeputte MAC-retransmissies (tot 7x) — leidt tot onnodige throughput-daling. Oplossingen: ECN, TCP Westwood, QUIC, link-layer ARQ.
 - **BMAC vs TSMP**: BMAC = onvoorspelbaar/bursty/event-driven verkeer, geen synchronisatie nodig, schaalbaar. TSMP = voorspelbaar/periodiek verkeer, vereist synchronisatie + centrale manager, beste energie-efficiëntie maar grootste energiekost zit in (re)joinen.
 - **Byte count framing**: kwetsbaar omdat een fout in het lengteveld de hele synchronisatie doet ontsporen — een checksum redt dit niet, want je weet niet meer waarop hij slaat.

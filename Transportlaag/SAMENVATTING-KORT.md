@@ -24,6 +24,10 @@ De transportlaag zorgt voor **end-to-end delivery** tussen processen op verschil
 - **End-to-end checksum** is nodig zelfs als lagere lagen al checksums doen, omdat fouten ook **binnen een defecte router** kunnen ontstaan (hop-by-hop is niet genoeg).
 - Basislogica: zender stuurt segment → ontvanger ACK't → geen ACK binnen timeout → retransmissie. Zender moet ongeACKte data bewaren.
 
+### Retransmissie: waar hoort het?
+
+**End-to-end argument**: retransmissie in de transportlaag is de enige die end-to-end correctheid garandeert. Datalinklaag-retransmissie (hop-by-hop) verbetert de prestatie op slechte links maar garandeert niets end-to-end. Applicatielaag-retransmissie geeft de app maximale controle maar dupliceert transportlaag-functionaliteit.
+
 ## Flow control: sliding window protocollen
 
 Flow control = hoeveel data mag "in flight" zijn zodat een **trage ontvanger** niet overspoeld wordt (vs. congestion control = bescherming van het **netwerk**).
@@ -114,6 +118,8 @@ Twee simplex-richtingen worden apart gesloten via **FIN**. Daarna **TIME_WAIT** 
 - **SACK**: ontvanger meldt welke byte-ranges al ontvangen zijn, zodat zender gericht kan hertransmitteren bij **meerdere verliezen** — via header options, dus compatibel.
 - **ECN**: routers markeren packets vóór een drop (i.p.v. packet loss als signaal); TCP reageert via **ECE/CWR** flags. Minder wijdverspreid dan SACK, want vereist support van beide eindhosts én netwerk.
 
+**ECN vs RED vergelijking**: RED dropt willekeurig vroeg bij stijgende queue → impliciet signaal, enkel routerwijziging nodig (breed gedeployed). ECN markeert i.p.v. dropt → expliciet signaal, geen dataverlies, maar vereist support aan beide eindhosts + routers. RED treft snellere zenders relatief vaker → eerlijker; ECN is vriendelijker maar minder gedeployed.
+
 ## RTP (kort, ter context)
 
 RTP (RFC 3550) draait meestal bovenop UDP en richt zich op **playback**, niet op perfecte aflevering: **te laat is vaak erger dan verloren**. Sequence number (16-bit, per packet) detecteert verlies/volgorde; **timestamp** (32-bit) zegt wanneer iets afgespeeld moet worden. **Jitter** (variatie in delay) wordt opgevangen met een **playback buffer** — trade-off tussen lage delay en weinig verlies door late aankomst. RTCP geeft feedback (delay, jitter, bandbreedte, sync).
@@ -132,5 +138,6 @@ QUIC (RFC 9000, ~30% van internetverkeer) is **frame-based**, draait in **usersp
 - **Two generals problem**: geen perfecte oplossing mogelijk — absolute wederzijdse zekerheid over verbindingstoestand is niet afdwingbaar.
 - **End-to-end checksums** blijven nodig ondanks lagere-laag checksums, want fouten kunnen binnen routers ontstaan.
 - Ken de **3-way handshake** met exacte SYN/ACK-waarden, en het verschil tussen RTO/persistence timer/TIME_WAIT.
-- RTP/UDP heeft géén ACK-clock en geen congestion control → kan TCP-flows "uithongeren" (unfairness) en draagt bij aan congestion collapse bij hoge belasting.
-- QUIC is geen "TCP 2.0": het is een nieuw protocol met eigen connection-identificatie (CID), framing en geïntegreerde security — niet zomaar een uitbreiding.
+- RTP/UDP heeft géén ACK-clock en geen congestion control → kan TCP-flows "uithongeren" (unfairness) en draagt bij aan congestion collapse bij hoge belasting. RTP gebruikt bewust geen flow/congestion control omdat **te laat erger is dan verloren** bij real-time media, en multicast (1-naar-N) het onpraktisch maakt om per ontvanger te throttlen.
+- QUIC is geen "TCP 2.0": het is een nieuw protocol met eigen connection-identificatie (CID), framing en geïntegreerde security — niet zomaar een uitbreiding. Kernverschillen: **0-RTT** setup (replay-risico!), **stream multiplexing** (geen HoL blocking op connectieniveau), **connection migration** via CID (IP/poort mogen wijzigen).
+- **Retransmissie hoort in de transportlaag** (end-to-end argument): hop-by-hop retransmissie verbetert prestatie maar garandeert niets end-to-end.

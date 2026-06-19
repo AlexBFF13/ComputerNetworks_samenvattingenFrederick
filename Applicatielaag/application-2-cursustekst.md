@@ -15,7 +15,24 @@ Die twee lijken op het eerste gezicht heel verschillend, maar ze lossen eigenlij
 - manuele configuratie vermijden
 - mobiliteit van toestellen ondersteunen
 
-DHCP gebruikt **UDP**. Dat is logisch: het protocol moet al kunnen werken op een moment dat een host nog niet eens een volledig bruikbare IP-configuratie heeft.
+DHCP gebruikt **UDP**. Dat is niet zomaar een keuze, maar een fundamentele noodzaak.
+
+### Waarom DHCP UDP gebruikt en niet TCP
+
+Dit is een klassieke examenvraag. Het antwoord gaat dieper dan "UDP is simpeler":
+
+**TCP is fundamenteel onmogelijk voor DHCP.** TCP vereist een three-way handshake met een **geldig bron-IP-adres** en een **geldig bestemmings-IP-adres**. Tijdens DHCPDISCOVER heeft de client **geen van beide**:
+
+- De client heeft nog geen eigen IP-adres (dat is precies wat hij probeert te krijgen)
+- De client kent het IP-adres van de DHCP-server niet
+
+Bovendien:
+
+- TCP is **unicast** en **connection-oriented** -- het kan niet broadcasten
+- DHCP heeft **broadcast** nodig: de client moet naar `255.255.255.255` zenden vanuit `0.0.0.0`
+- UDP laat toe om vanuit `0.0.0.0` naar `255.255.255.255` te zenden **zonder voorafgaande state**
+
+Het gaat dus niet om voorkeur, maar om **onmogelijkheid**: TCP kan structureel niet werken in een situatie waar de zender nog geen netwerkconfiguratie heeft.
 
 ### waarom bestaat dit?
 
@@ -31,15 +48,18 @@ Dat is op schaal onwerkbaar, zeker voor laptops, smartphones en tijdelijke toest
 
 Een belangrijk idee uit de slides is dat DHCP-adressen meestal niet permanent zijn. Ze worden toegekend als **lease** voor een bepaalde periode.
 
-Dat heeft voordelen:
+Dat heeft voordelen, maar er zit een duidelijke **trade-off** in:
 
-- korte leases gebruiken adresruimte efficiënter
-- lange leases verlagen de load op de DHCP-server
+| Lease-duur | Voordeel | Nadeel |
+|------------|----------|--------|
+| **Kort** (minuten) | Efficiënt hergebruik van schaarse adressen; snel vrijkomen bij inactieve hosts | Meer server-load door frequente vernieuwingen |
+| **Lang** (dagen/weken) | Minder overhead voor server en netwerk | Adressen blijven geblokkeerd door hosts die al lang niet meer actief zijn |
 
-Dus ook hier zit een trade-off in:
+De keuze hangt af van de omgeving:
 
-- meer efficiëntie
-- versus minder serveroverhead
+- **Cafe-wifi met veel korte bezoekers**: korte leases (30 min) zodat adressen snel vrijkomen
+- **Kantoornetwerk met vaste werkstations**: lange leases (dagen) om onnodige vernieuwingen te vermijden
+- **IoT-netwerk met veel devices en beperkte adresruimte**: korte leases
 
 ### intuition
 
@@ -124,6 +144,19 @@ server
 
 Vanaf dat moment heeft de client een bruikbaar IP-adres en kan verdere communicatie via normale IP verlopen.
 
+### De broadcast-logica per fase
+
+Elk bericht in de DHCP-flow heeft een specifieke reden om broadcast of unicast te zijn:
+
+| Fase | Richting | Bron-IP | Doel-IP | Waarom broadcast? |
+|------|----------|---------|---------|-------------------|
+| DISCOVER | Client -> all | `0.0.0.0` | `255.255.255.255` | Client kent noch eigen IP noch server-IP |
+| OFFER | Server -> all | Server-IP | `255.255.255.255` | Client heeft nog geen IP om unicast te ontvangen |
+| REQUEST | Client -> all | `0.0.0.0` | `255.255.255.255` | Informeert ook **afgewezen servers** dat hun aanbod niet gekozen is |
+| ACK | Server -> client | Server-IP | Client-IP of broadcast | Bevestigt de lease |
+
+Let op: de REQUEST is ook broadcast, niet alleen om de gekozen server te bereiken, maar ook zodat **andere DHCP-servers** weten dat hun OFFER niet geaccepteerd is en hun gereserveerde adres weer kunnen vrijgeven.
+
 ### belangrijk voor examen
 
 De basisflow van DHCP is:
@@ -133,7 +166,7 @@ De basisflow van DHCP is:
 - `REQUEST`
 - `ACK`
 
-Dat is een klassiek examenpunt.
+Dat is een klassiek examenpunt. Ken ook de broadcast-logica en waarom elk bericht broadcast moet zijn.
 
 ## Leases vernieuwen
 
@@ -195,6 +228,20 @@ Omdat je bij groeiende aantallen hosts en organisaties:
 - weinig flexibiliteit hebt
 
 Dus kwam DNS als hiërarchische, gedistribueerde oplossing.
+
+### Waarom DNS over UDP (en niet TCP)
+
+Dit is een veelgestelde examenvraag. De redenering heeft meerdere facetten:
+
+1. **DNS-queries zijn klein en kort**: een typische query past in een enkel UDP-datagram (< 512 bytes). TCP's three-way handshake zou per lookup drie extra berichten kosten, wat de latency verdrievoudigt voor een simpele naamresolutie.
+
+2. **Elke iteratieve stap zou een aparte TCP-verbinding nodig hebben**: een lokale resolver doet vaak 2-4 iteratieve stappen (root -> TLD -> authoritative). Met TCP zou dat 2-4 aparte TCP-handshakes betekenen.
+
+3. **Anycast**: UDP maakt **anycast** mogelijk. Meerdere fysieke root-servers delen hetzelfde IP-adres, en het dichtstbijzijnde exemplaar antwoordt. Met TCP zou de verbindingsstaat problemen geven als packets naar verschillende fysieke servers gaan.
+
+4. **Statelessness**: DNS-servers zijn **stateless** -- ze hoeven geen verbindingsstaat bij te houden per client. Dit maakt ze veel schaalbaarder, vooral voor root- en TLD-servers die miljoenen queries per seconde verwerken.
+
+**Uitzondering**: bij te grote antwoorden (> 512 bytes, of met DNSSEC) valt DNS terug op TCP. Zone transfers tussen DNS-servers gebruiken ook TCP omdat die betrouwbaarheid en grote datahoeveelheden vereisen.
 
 ## Een paar praktische DNS-notes
 
@@ -402,12 +449,34 @@ Dat zie je typisch hoger in de hiërarchie, bijvoorbeeld bij de rootservers.
 
 Een lokale name server kent via configuratie één of meer rootservers. Van daaruit "zoomt" de lookup steeds verder in op de server die de juiste zone beheert.
 
+### Het hybride model (split design)
+
+In de praktijk combineert DNS recursieve en iteratieve stappen in een **hybride model**. Dit is een belangrijk examenpunt dat de prof "split design" noemt.
+
+Het hybride model werkt omdat elke component doet waar hij goed in is:
+
+- **Client** stuurt een **recursieve** vraag aan de lokale resolver: "Geef mij het antwoord, ik wil niet zelf rondvragen."
+- **Lokale resolver** doet **iteratieve** stappen naar root/TLD/authoritative servers: "Ik weet het niet, maar probeer deze server eens."
+- **Root servers** geven enkel **stateless referrals**: ze verwijzen naar TLD-servers zonder zelf het hele werk te doen.
+
+Waarom is dit hybride model efficienter dan puur recursief of puur iteratief?
+
+| Aspect | Puur iteratief | Puur recursief | Hybride (praktijk) |
+|--------|---------------|----------------|-------------------|
+| Client-complexiteit | Hoog -- client moet zelf alle stappen doen | Laag -- een vraag, een antwoord | Laag |
+| Load op root servers | Hoog -- elke client begint bij root | Exploderend -- root moet alles resolven | Laag -- enkel stateless referrals |
+| Caching | Geen gedeelde cache | Server cached, maar niet schaalbaar | Lokale resolver cached voor hele regio |
+| Schaalbaarheid | Slecht | Slecht | Goed |
+
+Het cruciale inzicht is dat de **lokale resolver als gedeelde cache** fungeert. Als een gebruiker in dezelfde organisatie al eerder `www.google.com` heeft opgezocht, zit het antwoord in de cache van de lokale resolver. De root- en TLD-servers worden dan niet meer belast.
+
 ### belangrijk voor examen
 
 DNS-lookup combineert typisch:
 
 - een **recursive** component aan de kant van de lokale name server
 - en **iterative** stappen hoger in de hiërarchie
+- Dit hybride model (split design) combineert lage client-complexiteit met schaalbare, stateless root-servers en effectieve caching
 
 ## DNS op grote schaal
 
@@ -455,9 +524,10 @@ Dit hoofdstuk behandelt twee onmisbare ondersteunende protocollen van de applica
 ### belangrijk voor examen
 
 - Waarom **DHCP** nodig is
-- Waarom DHCP **UDP** gebruikt
-- Het idee van **leases**
-- De basisflow `DISCOVER -> OFFER -> REQUEST -> ACK`
+- Waarom DHCP **UDP** gebruikt en waarom **TCP fundamenteel onmogelijk** is (geen bron-IP, geen bestemmings-IP, broadcast nodig)
+- Het idee van **leases** en de **trade-off** tussen korte en lange leases
+- De basisflow `DISCOVER -> OFFER -> REQUEST -> ACK` inclusief de **broadcast-logica** per fase
+- Waarom REQUEST ook broadcast is (om afgewezen servers te informeren)
 - De rol van `DHCPDECLINE`, `DHCPRELEASE` en `DHCPNACK`
 - Waarom duplicate address detection met **ARP** gebeurt
 - Waarom het oude `hosts.txt`-model niet schaalde
@@ -467,6 +537,8 @@ Dit hoofdstuk behandelt twee onmisbare ondersteunende protocollen van de applica
 - De betekenis van `A`, `NS`, `MX` en `CNAME`
 - Het verschil tussen **authoritative** en **cached** data
 - Het verschil tussen **recursive** en **iterative** lookup
+- Het **hybride model (split design)**: waarom de combinatie van recursief (client-kant) en iteratief (hoger in hierarchie) het beste schaalt
+- Waarom **DNS over UDP** werkt (kleine queries, anycast, stateless) en wanneer DNS toch TCP gebruikt (grote antwoorden, zone transfers)
 - Waarom DNS-hiërarchie schaalbaarheid en delegatie mogelijk maakt
 
 ## Korte eindintuitie

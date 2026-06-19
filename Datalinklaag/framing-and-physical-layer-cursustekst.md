@@ -116,11 +116,27 @@ Zo kan het vlagpatroon niet per ongeluk ontstaan in de payload.
 
 ### waarom is bit stuffing vaak beter?
 
-Omdat je niet op bytegrenzen hoeft te werken en dus fijner kan omgaan met de bitstroom. Dat maakt het vaak efficiënter dan byte stuffing.
+Omdat je niet op bytegrenzen hoeft te werken en dus fijner kan omgaan met de bitstroom. Dat maakt het vaak efficienter dan byte stuffing.
+
+### Rekenvoorbeeld: wanneer bit stuffing efficienter is
+
+Stel dat de byte `0xFF` (binair: `11111111`) in de data voorkomt en ook de flag-byte is:
+
+| Methode | Resultaat | Overhead |
+| --- | --- | --- |
+| **Bit stuffing** | `11111` **0** `111` = 9 bits | +1 bit |
+| **Byte stuffing** | ESC + 0xFF = 16 bits | +8 bits (een hele extra byte) |
+
+Bit stuffing is hier **8x efficienter**. Hoe meer flag-achtige patronen in de data voorkomen, hoe groter het voordeel van bit stuffing.
+
+In het algemeen:
+
+- Bit stuffing voegt in het slechtste geval 1 bit toe per 5 databits (20% overhead)
+- Byte stuffing voegt in het slechtste geval 1 byte toe per databyte (100% overhead)
 
 ### belangrijk voor examen
 
-Bij **bit stuffing** wordt na vijf opeenvolgende 1-bits een `0` ingevoegd. De ontvanger verwijdert die opnieuw. Zo blijft het flagpatroon uniek.
+Bij **bit stuffing** wordt na vijf opeenvolgende 1-bits een `0` ingevoegd. De ontvanger verwijdert die opnieuw. Zo blijft het flagpatroon uniek. Bit stuffing is efficienter dan byte stuffing omdat het op bitniveau werkt in plaats van op byteniveau.
 
 ## Overgang naar de physical layer
 

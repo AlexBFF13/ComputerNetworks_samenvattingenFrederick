@@ -286,7 +286,33 @@ Nu zie je waarom het internet twee grote routinglagen nodig heeft:
 - **OSPF** voor technisch efficiënte routing binnen een AS
 - **BGP** voor beleidsgestuurde routing tussen AS’en
 
-Dat onderscheid is fundamenteel. Als je één protocol voor alles zou willen gebruiken, verlies je ofwel schaal, ofwel beleid, ofwel beide.
+Dat onderscheid is fundamenteel. Als je een protocol voor alles zou willen gebruiken, verlies je ofwel schaal, ofwel beleid, ofwel beide.
+
+## Directe vergelijking OSPF vs BGP
+
+| Eigenschap | OSPF | BGP |
+| --- | --- | --- |
+| **Scope** | Intra-domain (binnen een AS) | Inter-domain (tussen AS’en) |
+| **Type** | Interior Gateway Protocol | Exterior Gateway Protocol |
+| **Algoritme** | Link-state (Dijkstra) | Path-vector (variant van distance vector) |
+| **Routeringskriterium** | Technisch shortest path (kost/metric) | **Policy**: kosten, bandbreedte, welke AS’en vermijden |
+| **Kennis per router** | Volledige topologie van de area | Enkel reachability + AS-path (geen interne details van andere AS’en) |
+| **Transport** | Direct op IP (protocol 89), **connectionless** | **TCP** (poort 179), **connection-oriented** |
+| **Schaalbaarheid** | Beperkt tot een AS (hierarchie via areas) | Ontworpen voor het volledige internet |
+| **Convergentiesnelheid** | Snel (directe flooding) | Trager (beleidsfilters, padverificatie) |
+| **Informatie gedeeld** | Link-state advertisements (linkkost naar buren) | AS-paths + prefixes (bereikbaarheidsinfo) |
+
+### Waarom OSPF connectionless transport gebruikt
+
+OSPF verspreidt link-state advertisements via flooding naar alle buren. TCP-sessies opzetten per buurnode zou zwaar en zinloos zijn voor dit flooding-model. OSPF draait direct op IP (protocol 89) en is in geest connectionless.
+
+### Waarom BGP TCP gebruikt
+
+Inter-AS sessies zijn **langlevend** (dagen tot weken). Ze moeten betrouwbaar zijn: een verloren BGP-update kan een heel AS onbereikbaar maken. TCP biedt betrouwbaarheid, ordered delivery en flow control. Bovendien zorgt TCP’s retransmissie ervoor dat routinginformatie niet verloren gaat over potentieel onbetrouwbare inter-AS links.
+
+### belangrijk voor examen
+
+OSPF en BGP verschillen fundamenteel in **scope** (intra vs inter-domain), **algoritme** (link-state vs path-vector), **criterium** (technisch vs policy) en **transport** (connectionless vs TCP). Je moet deze vier dimensies kunnen uitleggen.
 
 ## Mobile networks
 
@@ -327,7 +353,8 @@ Wanneer de home agent daarna verkeer voor de mobiele host ontvangt, wordt dat:
 - getunneld
 - doorgestuurd naar het care-of address
 
-### client
+### Client-flow
+
 \--> verhuist naar nieuw netwerk  
 \--> krijgt care-of address  
 \--> meldt dit aan home agent  
@@ -463,9 +490,34 @@ Dat helpt om oude, foutieve routes uit het systeem te halen.
 
 De slides merken ook op dat AODV hiermee een deel van het count-to-infinity-probleem kan omzeilen, maar dat lange time-outs nog altijd lastig blijven.
 
+## Wanneer AODV beter is dan OSPF (en omgekeerd)
+
+Dit is een klassieke examenvraag. De keuze tussen AODV en OSPF hangt af van de netwerkomstandigheden.
+
+### AODV is beter wanneer:
+
+- **Topologie vaak verandert** (mobiele nodes, ad-hoc netwerken): OSPF zou continu link-state updates moeten flooden bij elke topologiewijziging, wat enorm veel overhead geeft
+- **Resources beperkt zijn** (IoT, sensor nodes): AODV vereist minimaal geheugen (enkel actieve routes), terwijl OSPF de volledige topologiedatabase moet opslaan
+- **Er weinig actief verkeer is**: AODV genereert geen control traffic als niemand data stuurt; OSPF stuurt continu HELLO's en link-state updates
+- **Energie beperkt is**: minder control traffic = minder zenden = langere batterijduur
+
+### OSPF is beter wanneer:
+
+- **Topologie stabiel is** (campus, enterprise): de eenmalige kost van topologiedistributie wordt geamortiseerd over lange periodes van stabiliteit
+- **Lage latency cruciaal is**: OSPF heeft routes altijd klaar; AODV moet eerst een route discovery doen (vertraging van seconden)
+- **Het netwerk groot maar gestructureerd is**: OSPF's hierarchie via areas schaalt goed in gestructureerde omgevingen
+- **Betrouwbaarheid cruciaal is**: OSPF convergeert snel en voorspelbaar; AODV kan lijden aan lange NO_ROUTE time-outs
+
+### Kernredenering voor het examen
+
+De keuze draait om de **verhouding tussen topologieveranderingen en dataverkeer**:
+
+- Veel topologiewijzigingen, weinig verkeer: AODV (reactief = minder verspilling)
+- Stabiele topologie, veel verkeer: OSPF (proactief = altijd klaar)
+
 ## AODV in perspectief
 
-De cursus is vrij eerlijk: AODV is een belangrijk voorbeeld om de ideeën te begrijpen, maar dit onderzoeksdomein is nog lang niet "af". Bij ad-hoc routing zijn de algoritmes veel minder stabiel uitgekristalliseerd dan bij klassieke internet routing.
+De cursus is vrij eerlijk: AODV is een belangrijk voorbeeld om de ideeen te begrijpen, maar dit onderzoeksdomein is nog lang niet "af". Bij ad-hoc routing zijn de algoritmes veel minder stabiel uitgekristalliseerd dan bij klassieke internet routing.
 
 Dat maakt ook logisch waarom dit als hot research topic voorgesteld wordt.
 
@@ -506,6 +558,10 @@ De grote rode draad is dat routing niet overal hetzelfde doel heeft:
 - Waarom **AODV** reactief is
 - Hoe **ROUTE_REQUEST** en **ROUTE_REPLY** werken
 - Waarom flooding in AODV geoptimaliseerd moet worden met TTL
+- Wanneer **AODV beter is dan OSPF** (dynamische topologie, beperkte resources, weinig verkeer) en omgekeerd
+- Hoe AODV het **count-to-infinity-probleem** oplost via **destination sequence numbers**
+- De vier dimensies waarin **OSPF en BGP** verschillen: scope, algoritme, criterium en transport
+- Waarom OSPF **connectionless** transport gebruikt en BGP **TCP**
 
 ## Korte eindintuitie
 

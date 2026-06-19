@@ -211,16 +211,37 @@ Het algemene patroon is duidelijk: QUIC verlaagt de **connection establishment l
 
 ### 1-RTT en 0-RTT
 
-Bij een nieuwe verbinding kan QUIC in veel gevallen sneller operationeel zijn dan klassieke TCP + TLS-combinaties. Met **early data** kan men zelfs naar **0-RTT** voor bepaalde hernemingen van eerdere sessies.
+Bij een **nieuwe verbinding** kan QUIC typisch in **1 RTT** operationeel zijn. De transport handshake en de TLS 1.3 handshake lopen tegelijk, in plaats van na elkaar zoals bij TCP + TLS.
 
-Dat betekent niet dat alles gratis wordt. 0-RTT heeft security-nuances, maar het grote idee is:
+Vergelijking van opstartlatency:
 
-- minder heen-en-weer voor opstart
-- sneller bruikbare applicatiedata
+| Combinatie | Aantal RTTs voor eerste applicatiedata |
+|---|---|
+| TCP + TLS 1.2 | 3 RTT (1 TCP handshake + 2 TLS handshake) |
+| TCP + TLS 1.3 | 2 RTT (1 TCP handshake + 1 TLS handshake) |
+| TCP + TLS 1.3 + early data | 2 RTT (maar data kan al bij de eerste TLS-flight mee) |
+| QUIC + TLS 1.3 (nieuw) | **1 RTT** (transport + crypto tegelijk) |
+| QUIC + TLS 1.3 (hervat) | **0 RTT** (early data met opgeslagen keys) |
+
+### 0-RTT: hoe en wanneer
+
+Bij **0-RTT** stuurt de client meteen applicatiedata mee in het allereerste packet, nog voor de handshake afgerond is. Dit kan alleen als:
+
+- de client eerder al een verbinding met deze server had
+- de client een **session ticket** of **pre-shared key** van die eerdere sessie heeft opgeslagen
+- de server deze keys nog accepteert
+
+### Security-risico's van 0-RTT
+
+0-RTT is niet gratis -- er zijn belangrijke security trade-offs:
+
+- **Replay attacks**: een aanvaller kan een 0-RTT packet opvangen en later opnieuw afspelen. De server kan niet met zekerheid onderscheiden of het een origineel of herhaald verzoek is. Daarom is 0-RTT enkel veilig voor **idempotente** operaties (operaties die je veilig meerdere keren kan uitvoeren, zoals een GET-request, maar niet een bankovermaking).
+
+- **Geen forward secrecy**: 0-RTT data wordt versleuteld met keys van de vorige sessie. Als die keys gecompromitteerd zijn, is de 0-RTT data ook leesbaar.
 
 ### belangrijk voor examen
 
-QUIC verlaagt opstartlatency door **transport en TLS 1.3 sterk te integreren**, en kan bij hervatte sessies zelfs **0-RTT early data** ondersteunen.
+QUIC verlaagt opstartlatency door **transport en TLS 1.3 sterk te integreren** (1 RTT voor nieuwe verbindingen). Bij hervatte sessies is **0-RTT early data** mogelijk, maar dit brengt het risico van **replay attacks** mee en is daarom enkel veilig voor idempotente operaties.
 
 ## Congestion control in QUIC
 
@@ -322,40 +343,46 @@ Sluit de verbinding af en geeft een foutoorzaak mee.
 
 Nu we alles samenleggen, zie je dat QUIC niet alleen "sneller TCP" wil zijn. Het neemt een andere architecturale positie in.
 
-### TCP
+| Aspect | TCP | QUIC |
+|---|---|---|
+| **Encryptie** | Optioneel, apart via TLS | Verplicht, TLS 1.3 ingebouwd |
+| **Connection setup** | 1-3 RTT (TCP + TLS) | 1 RTT nieuw, 0 RTT hervat |
+| **Datamodel** | Byte-stream (een enkele geordende stroom) | Frame-based met meerdere streams |
+| **Head-of-line blocking** | Ja -- een verloren segment blokkeert alles | Nee -- enkel de getroffen stream wacht |
+| **Connection migration** | Nee -- gebonden aan IP/poort 4-tuple | Ja -- overleeft WiFi naar 4G switch |
+| **Implementatie** | OS kernel | User space (snellere updates) |
+| **Uitbreidbaarheid** | TCP options, maar middleboxes blokkeren vaak | Frame types, versleuteld dus onzichtbaar voor middleboxes |
+| **Congestion control** | AIMD / Reno / Cubic in kernel | Cubic (RFC 8312), pluggable in user space |
+| **Verbindingsidentificatie** | IP/poort 4-tuple | Connection ID (variabele lengte) |
+| **Sequence numbers** | 32-bit (kan wrappen) | 62-bit (wrapt in praktijk nooit) |
+| **ACKs** | Cumulatief (+ optioneel SACK) | Range-based (altijd, rijkere info) |
 
-- byte-stream
-- kernel-georienteerd
-- uitbreiden via options is lastig
-- security typisch apart via TLS
-- koppelt connectie sterk aan IP/poort-combinaties
+### Waarom QUIC niet TCP kan vervangen voor alles
 
-### QUIC
+QUIC is geen universele vervanger:
 
-- frame-based
-- userspace bovenop UDP
-- ingebouwde security
-- meerdere onafhankelijke streams
-- lagere opstartlatency
-- connection migration
+- QUIC heeft **geen unreliable mode** -- het is altijd betrouwbaar. Voor verlies-tolerante realtime media (waar RTP/UDP voor dient) is QUIC niet geschikt.
+- QUIC draait in **user space**, wat meer CPU-overhead kan geven dan kernel-TCP
+- QUIC is versleuteld, waardoor netwerk-debugging en monitoring moeilijker is
+- Sommige firewalls blokkeren of throttlen UDP-verkeer, wat QUIC kan hinderen
 
 ## Wat je echt moet kennen
 
 ### belangrijk voor examen
 
-- Waarom QUIC ontwikkeld werd
-- Waarom QUIC bovenop UDP gebouwd is
-- De rol van **Long Header** en **Short Header**
-- Wat **Connection IDs** oplossen
-- Waarom QUIC **frame-based** is
-- Hoe QUIC-ACKs rijkere informatie kunnen geven dan een puur cumulatief model
-- Waarom **stream multiplexing** belangrijk is
+- Waarom QUIC ontwikkeld werd (middleboxes blokkeren TCP-opties, mobiele toestellen, moderne applicaties)
+- Waarom QUIC bovenop **UDP** gebouwd is (middleboxes begrijpen UDP, user space vermijdt kernel-ossificatie)
+- De rol van **Long Header** (setup) en **Short Header** (data na handshake)
+- Wat **Connection IDs** oplossen (verbinding niet gebonden aan IP/poort)
+- Waarom QUIC **frame-based** is (modulair, verschillende frametypes voor data/ACK/crypto/flow control)
+- Hoe QUIC-ACKs **range-based** rijkere informatie geven dan TCP's cumulatieve model
+- Waarom **stream multiplexing** head-of-line blocking oplost
 - Het verschil tussen **unidirectional** en **bidirectional** streams
-- Waarom QUIC sneller security kan opzetten dan TCP + TLS
-- Wat **0-RTT early data** betekent
-- Hoe **connection migration** werkt in grote lijnen
-- Waarvoor `PATH_CHALLENGE` en `PATH_RESPONSE` dienen
-- De rol van `MAX_DATA`, `MAX_STREAM_DATA`, `MAX_STREAMS` en `CONNECTION_CLOSE`
+- De **latency-vergelijking**: TCP+TLS 1.2 = 3 RTT, TCP+TLS 1.3 = 2 RTT, QUIC nieuw = 1 RTT, QUIC hervat = 0 RTT
+- Wat **0-RTT early data** betekent en het **replay attack risico** (enkel voor idempotente operaties)
+- Hoe **connection migration** werkt: Connection IDs + PATH_CHALLENGE/PATH_RESPONSE + congestion state reset
+- QUIC heeft **wel** congestion control (Cubic) maar is **geen** vervanging voor RTP (geen unreliable mode)
+- De vergelijkingstabel **QUIC vs TCP** op alle hoofdpunten
 
 ## Korte eindintuitie
 

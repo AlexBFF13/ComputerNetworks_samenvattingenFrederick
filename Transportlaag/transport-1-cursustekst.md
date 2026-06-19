@@ -491,6 +491,95 @@ Anders zou de ontvanger duplicaten kunnen verwarren met nieuwe segmenten.
 
 Selective Repeat is efficiënter dan Go-Back-N, maar vereist **buffers aan beide kanten** en een **venstergroottebeperking van hoogstens de helft van de sequence space**.
 
+## Vergelijking sliding window-protocollen
+
+De drie protocollen vormen een spectrum van eenvoud naar efficiëntie:
+
+| Eigenschap | Stop-and-Wait | Go-Back-N | Selective Repeat |
+|---|---|---|---|
+| Zendervenster | 1 | W (instelbaar) | W (instelbaar) |
+| Ontvangervenster | 1 | 1 | W |
+| Buffering ontvanger | Nee | Nee | Ja (out-of-order) |
+| ACK-type | Per segment | Cumulatief | Individueel per segment |
+| Bij verlies | Hertransmit dat ene segment | Hertransmit **alle** segmenten vanaf het verloren punt | Hertransmit **enkel** het verloren segment |
+| Sequence number vereiste | 2 nummers (0, 1) | W + 1 nummers | 2W nummers (venster max helft van range) |
+| Efficiëntie | Laag bij hoog a = T_prop/T_trans | Hoog bij geen verlies, slecht bij veel verlies | Altijd hoog |
+| Complexiteit | Minimaal | Gemiddeld | Hoog |
+
+### Efficiency-formules
+
+De kernformule voor de drie protocollen is:
+
+```
+a = propagatievertraging (één richting) / transmissietijd = (RTT/2) / T_trans
+T_trans = (packetgrootte × 8) / linksnelheid
+
+Stop-and-Wait:    η = 1 / (1 + 2a)
+Go-Back-N:        η = min(W / (1 + 2a), 1)
+Selective Repeat: η = min(W / (1 + 2a), 1)
+```
+
+Om 100% efficiëntie te bereiken heb je een venster nodig van minstens W >= 1 + 2a.
+
+### Sequence number beperkingen per protocol
+
+Dit is een veelgevraagd examenonderwerp:
+
+- **Go-Back-N**: het aantal sequence numbers moet minstens **W + 1** zijn. Waarom? De ontvanger heeft venster 1 en verwerpt alles behalve het verwachte nummer. Als alle W ACKs verloren gaan en de zender alles hertransmit, moet de ontvanger het verschil kunnen zien tussen nieuwe en oude segmenten. Met W + 1 nummers is dat altijd mogelijk.
+
+- **Selective Repeat**: het aantal sequence numbers moet minstens **2W** zijn (ofwel venster max de helft van de sequence space). Waarom? De ontvanger heeft nu ook een venster van W en buffert out-of-order. Na ACK-verlies kan de zender hertransmitteren. Als de sequence space te klein is, kan de ontvanger een hertransmissie niet onderscheiden van een nieuw segment met hetzelfde nummer.
+
+### belangrijk voor examen
+
+De sequence number beperking is fundamenteel verschillend: Go-Back-N heeft W + 1 nummers nodig, Selective Repeat heeft **2W** nummers nodig. Dit verschil komt voort uit het feit dat SR een ontvangervenster > 1 heeft.
+
+## Waar hoort retransmissie thuis? (Transport layer vs andere lagen)
+
+Een klassieke examenvraag is: **waarom doen we retransmissie in de transportlaag, en niet in de datalinklaag of de applicatielaag?**
+
+### Retransmissie in de datalinklaag
+
+De datalinklaag doet **hop-by-hop** retransmissie: als een frame verloren gaat tussen twee direct verbonden nodes, wordt het lokaal opnieuw gestuurd.
+
+Voordelen:
+- snelle reactie (korte RTT per hop)
+- minder belasting op het hele pad
+
+Nadelen:
+- beschermt **niet** tegen fouten binnen routers (een packet kan correct aankomen bij een router, maar door een geheugenfout beschadigd raken voor het verder gestuurd wordt)
+- beschermt niet tegen packet loss door routercongestie
+- niet elk medium biedt datalinkretransmissie (Ethernet klassiek niet, WiFi wel)
+
+### Retransmissie in de transportlaag
+
+De transportlaag doet **end-to-end** retransmissie: als data niet bij de eindbestemming aankomt, stuurt de bron opnieuw.
+
+Voordelen:
+- beschermt tegen **alle** vormen van verlies op het hele pad, inclusief fouten binnen routers
+- is het enige niveau waarop je **end-to-end** betrouwbaarheid kan garanderen
+- sluit aan bij het **end-to-end argument**: functies die end-to-end correctheid vereisen, moeten op de eindpunten geïmplementeerd worden
+
+Nadelen:
+- tragere reactie (hogere RTT over het hele pad)
+- hertransmissie belast het volledige pad opnieuw
+
+### Retransmissie in de applicatielaag
+
+Sommige applicaties implementeren hun eigen retransmissie bovenop UDP.
+
+Voordelen:
+- volledige controle over wat en wanneer hertransmit wordt
+- applicatie kan semantisch beslissen (bijvoorbeeld: bij video is hertransmissie na een deadline zinloos)
+
+Nadelen:
+- dubbel werk als transport dit al doet
+- elke applicatie moet het wiel opnieuw uitvinden
+- geen standaardisatie
+
+### belangrijk voor examen
+
+De transportlaag is de **juiste plek** voor end-to-end retransmissie volgens het **end-to-end argument**. Datalinkretransmissie is nuttig als **aanvulling** (hop-by-hop recovery verlaagt de load op transport), maar kan nooit de enige bescherming zijn omdat fouten ook binnen routers kunnen ontstaan.
+
 ## Congestiecontrole: wat is congestie?
 
 Na flow control gaan de slides naar **congestion control**.
@@ -565,6 +654,56 @@ Dat onderscheid is cruciaal:
 - in het tweede geval moet je send rate omlaag door congestiesignalen
 
 TCP doet later beide.
+
+## Leaky bucket en token bucket
+
+De slides introduceren ook mechanismen om verkeer te reguleren en bursts te gladstrijken.
+
+### Leaky bucket
+
+Het **leaky bucket**-algoritme werkt als volgt:
+
+- stel je een emmer voor met een vaste uitstroomsnelheid **R** (bytes/seconde of packets/seconde)
+- de emmer heeft een maximale capaciteit **B** (de bucket size)
+- inkomend verkeer wordt in de emmer gegoten
+- de emmer lekt aan een constant tempo R
+
+Als de emmer vol is en er komt nieuw verkeer aan, dan worden die packets **gedropt**. De emmer kan nooit meer dan B bytes bevatten.
+
+### Hoe werkt het in de praktijk?
+
+De zender mag op elk moment data in de emmer gieten, ook in bursts. Maar de uitstroom is altijd constant op snelheid R. Het effect is dat bursts worden **afgevlakt** tot een gelijkmatige stroom.
+
+### De parameters R en B
+
+- **R** (rate): de maximale gemiddelde doorvoersnelheid. Dit is het tempo waaraan de emmer leegt.
+- **B** (burst size / bucket depth): hoeveel data je maximaal mag opsparen als burst. Een grotere B laat grotere bursts toe, maar de gemiddelde snelheid blijft R.
+
+### Grafiek
+
+Als je een grafiek tekent van het leaky bucket-algoritme:
+
+- de x-as is tijd
+- de y-as is de hoeveelheid data die het netwerk ingaat
+- de output van de leaky bucket is een **rechte lijn** met helling R (constante uitstroom)
+- de input kan pieken hebben (bursts), maar de output is altijd glad
+- het maximale verschil tussen input en output op elk moment is begrensd door B
+
+### Token bucket (vergelijking)
+
+Het **token bucket**-algoritme is een variant die iets soepeler is:
+
+- tokens worden aan een vast tempo R gegenereerd
+- tokens verzamelen zich in een emmer tot maximum B tokens
+- om data te versturen moet je tokens "uitgeven"
+- als er tokens beschikbaar zijn, mag je in een burst versturen (tot B tokens tegelijk)
+- als er geen tokens zijn, moet je wachten
+
+Het verschil met leaky bucket: token bucket laat **korte bursts tot snelheid hoger dan R** toe, zolang er tokens opgebouwd zijn. Leaky bucket staat nooit meer dan R toe.
+
+### belangrijk voor examen
+
+Bij een leaky bucket is de uitstroom **altijd constant op R**, ongeacht hoe het inkomende verkeer eruitziet. De burst size B bepaalt hoeveel data je maximaal kan opslaan. Je moet een grafiek kunnen tekenen met constante uitstroom en begrensde buffering.
 
 ## AIMD
 
@@ -684,9 +823,13 @@ Dat is de basis waarop latere hoofdstukken over TCP, RTP en QUIC verder bouwen.
 - Hoe **stop-and-wait** werkt
 - Hoe **Go-Back-N** werkt
 - Hoe **Selective Repeat** werkt
-- Waarom SR een **venstergroottebeperking** heeft
+- Waarom SR een **venstergroottebeperking** heeft (max helft sequence space)
+- De **sequence number beperkingen** per protocol: Go-Back-N (W + 1) vs Selective Repeat (2W)
+- De **efficiency-formule** en wanneer stop-and-wait volstaat (a << 1)
+- Waarom **retransmissie in de transportlaag** hoort (end-to-end argument)
 - Het verschil tussen **flow control** en **congestion control**
 - Het idee achter **AIMD**
+- Hoe de **leaky bucket** werkt (R, B, constante uitstroom, grafiek)
 - Wat UDP wel en niet aanbiedt
 
 ## Korte eindintuitie

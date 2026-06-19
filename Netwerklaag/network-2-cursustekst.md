@@ -241,6 +241,34 @@ Dat is slim, want je hoeft niet per packet perfect bij te houden wie exact de gr
 
 RED dropt **vroeg en willekeurig** om congestie sneller zichtbaar te maken voor transportprotocollen, en treft daardoor relatief vaker de snelste senders.
 
+## Vergelijking congestion notifications: Choke Packets vs ECN vs RED
+
+Dit is een van de meest gevraagde examenonderwerpen. Hieronder een directe vergelijking van de drie mechanismen.
+
+| Eigenschap | Choke Packets | ECN | RED |
+| --- | --- | --- | --- |
+| **Werking** | Router stuurt apart packet naar zender | Router markeert bit in bestaand doorgestuurd packet; ontvanger echo't naar zender | Router dropt packets probabilistisch voor queue vol is |
+| **Signaaltype** | Expliciet, apart packet | Expliciet, markering in bestaand packet | Impliciet via packet loss |
+| **Extra overhead** | Hoog: extra packets in een al overbelast netwerk | Geen: hergebruikt bestaande packets | Negatief: nutteloze hertransmissies door bewust droppen |
+| **Reactiesnelheid** | Snel (~1 RTT, direct naar zender) | Medium (~1 RTT, maar via ontvanger terug) | Snel: TCP interpreteert verlies direct als congestiesignaal |
+| **Deployment-vereisten** | Enkel zender moet reageren | Routers + beide endpoints moeten ECN ondersteunen | **Enkel routers** -- geen endpoint-wijzigingen nodig |
+| **Eerlijkheid** | Niet inherent eerlijk: treft willekeurig een flow | Niet inherent eerlijk | Eerlijk: zware zenders hebben meer packets in queue en worden proportioneel vaker getroffen |
+| **Daadwerkelijk gedeployed** | Historisch, weinig modern gebruik | Beperkt (vereist end-to-end support) | **Ja** -- meest gedeployed in de praktijk |
+
+### Waarom RED het meest gedeployed is
+
+RED heeft een groot praktisch voordeel: het vereist **geen wijzigingen aan endpoints**. Routers kunnen RED autonoom implementeren. ECN daarentegen vereist dat zowel routers als beide communicerende hosts ECN ondersteunen, wat de deployment veel moeilijker maakt.
+
+### Wanneer welk mechanisme kiezen?
+
+- **Choke packets**: snel maar duur -- geschikt als je snelle reactie wilt en de extra overhead accepteert
+- **ECN**: theoretisch het elegantst (geen packet loss, geen extra packets), maar moeilijk te deployen
+- **RED**: pragmatisch het best -- werkt met bestaande TCP-stacks en vereist geen endpoint-wijzigingen
+
+### belangrijk voor examen
+
+Je moet de drie mechanismen kunnen **vergelijken** op snelheid, overhead, deployment-complexiteit en eerlijkheid. RED is wat in de praktijk het meest gebruikt wordt omdat het **enkel routerwijzigingen** vereist.
+
 ## Quality of Service (QoS)
 
 Na congestiecontrole verschuift de focus naar **quality of service**.
@@ -391,19 +419,39 @@ Dat is eenvoudig, maar erg gevoelig voor misbruik:
 
 Dus FIFO is simpel, maar niet eerlijk.
 
-## Fair Queuing (FQ)
+## Fair Queuing (FQ) en Round Robin
 
-Bij **fair queuing** krijgt elke flow zijn eigen queue. Als de lijn vrij is, neemt de router beurtelings een packet uit elke queue.
+Bij **fair queuing** krijgt elke flow zijn eigen queue. De router bedient die queues in een **round-robin** schema: beurtelings wordt een packet uit elke queue genomen.
 
-Dat voorkomt dat één agressieve flow alles blokkeert.
+Dat voorkomt dat een agressieve flow alles blokkeert. Elke flow krijgt een gelijk aandeel van de uitgaande link, ongeacht hoeveel traffic hij probeert te sturen.
 
-### maar er is nog een trucje
+### Werking van Round Robin
+
+Het principe is eenvoudig:
+
+1. Elke actieve flow krijgt een eigen queue
+2. De scheduler gaat in rondes langs alle queues
+3. Per ronde neemt hij een packet uit elke queue
+4. Lege queues worden overgeslagen
+
+Zo krijgt elke flow een eerlijk aandeel van de bandbreedte, onafhankelijk van de agressiviteit van andere flows.
+
+### Misbruik van Round Robin fair queuing
 
 De slides stellen een goeie vraag: hoe zou je dit als transportontwikkelaar proberen te omzeilen?
 
 Antwoord: door **grote packets** te sturen.
 
-Als elke flow per beurt één packet mag sturen, dan wint een flow met grotere packets alsnog meer bytes per ronde.
+Als elke flow per beurt een packet mag sturen, dan wint een flow met grotere packets alsnog meer bytes per ronde. Stel dat flow A packets van 1500 bytes stuurt en flow B packets van 100 bytes. Na een ronde heeft flow A 15x meer bytes verstuurd dan flow B, ondanks "eerlijke" round-robin.
+
+### Andere manieren om round robin te misbruiken
+
+- **Meerdere flows openen**: een gebruiker kan meerdere connecties openen naar dezelfde bestemming, waardoor hij meerdere queues bezet en proportioneel meer bandbreedte krijgt
+- **Fragmentatie misbruiken**: grote packets opsplitsen in veel kleine fragmenten om meer "beurten" te krijgen
+
+### Oplossing: byte-gebaseerde fairness
+
+Om het probleem van ongelijke packetgroottes op te lossen, kan men overschakelen naar **byte-level fair queuing**. In plaats van per packet te schedulen, berekent de scheduler hoeveel bytes elke flow per ronde mag versturen. Zo maakt packetgrootte niet meer uit.
 
 Dus fair queuing op packetniveau is niet automatisch perfect eerlijk op byte-niveau.
 
@@ -590,30 +638,67 @@ Nadeel:
 
 De slides zijn daar heel duidelijk in: fragmentatie is duur in beide modellen en wordt best vermeden.
 
+Problemen met fragmentatie:
+
+- **Performance**: elk fragment moet apart verwerkt worden door routers
+- **Reassembly-complexiteit**: de ontvanger (bij niet-transparant) of de router (bij transparant) moet alle fragmenten bufferen en correct samenvoegen
+- **Verlies van een fragment**: als een enkel fragment verloren gaat, moet het volledige oorspronkelijke packet opnieuw verstuurd worden (bij TCP), omdat IP geen per-fragment retransmissie doet
+- **Security**: overlappende fragmenten kunnen gebruikt worden voor aanvallen (fragment overlap attacks)
+
 Daarom moet de zender liefst de **path MTU** kennen: de grootste packetgrootte die langs het volledige pad past zonder fragmentatie.
 
-## Path MTU discovery
+## Vergelijking: transparante vs niet-transparante fragmentatie
+
+| Eigenschap | Transparante fragmentatie | Niet-transparante fragmentatie |
+| --- | --- | --- |
+| **Wie fragmenteert** | Router waar MTU-mismatch optreedt | Router waar MTU-mismatch optreedt |
+| **Wie assembleert** | De router aan het einde van het smalle stuk (next-hop router) | De **eindbestemming** |
+| **Voordeel** | Host merkt niets, eenvoudiger voor eindtoestellen | Minder werk voor routers, geen reassembly-state op routers |
+| **Nadeel** | Zeer zwaar voor routers, herhaalde fragmentatie als meerdere smalle links | Host moet fragmenten bufferen en samenvoegen |
+| **Gebruikt door** | Theoretisch model | **IPv4** (niet-transparant: reassembly bij bestemming) |
+
+**IPv6** gaat nog een stap verder: routers mogen helemaal **niet** fragmenteren. Enkel de bronhost mag fragmenteren (via een extension header), en de bestemming assembleert.
+
+## Path MTU discovery en de rol van ICMP
 
 Bij **path MTU discovery** stuurt de zender packets uit en leert hij onderweg wat de kleinste bruikbare MTU op het pad is.
 
-Als een router een te groot packet ontvangt, dan:
+### Het proces stap voor stap
 
-- dropt hij dat packet
-- en stuurt hij een foutmelding terug
+1. De zender stuurt een packet met de **DF-flag (Don't Fragment)** gezet
+2. Als een router een te groot packet ontvangt en het niet mag fragmenteren (DF=1):
+   - dropt hij dat packet
+   - stuurt hij een **ICMP Destination Unreachable** (Type 3, Code 4) terug
+   - dit ICMP-bericht bevat de **MTU van de bottleneck-link**
+3. De zender verlaagt zijn packetgrootte naar de ontvangen MTU
+4. Het proces herhaalt zich totdat het packet het hele pad past
 
-De zender verlaagt dan zijn packetgrootte.
+### De cruciale rol van de DF-flag
 
-### Is dit compatibel met gewone fragmentatie?
+Het DF-bit is essentieel voor path MTU discovery. Zonder DF-flag zou een router een te groot packet gewoon fragmenteren, en de zender zou nooit leren dat zijn packets te groot zijn.
 
-Volgens de slides: nee.
+### Onverenigbaarheid van fragmentatie en PMTUD
 
-Waarom niet? Omdat fragmentatie het probleem juist zou verbergen. Als routers alles gewoon zouden fragmenteren, dan zou de zender nooit echt leren dat zijn packets te groot zijn voor het pad.
+Fragmentatie en path MTU discovery zijn **fundamenteel incompatibel**:
 
-Daarom moet bij path MTU discovery de **DNF/DF-flag** gezet worden, zodat routers het packet niet fragmenteren maar echt terugmelden dat het te groot was.
+- Fragmentatie **verbergt** het MTU-probleem (de router lost het zelf op)
+- PMTUD **onthult** het MTU-probleem (de router meldt het terug)
+
+Je kunt niet tegelijk fragmenteren en de MTU ontdekken. Daarom moet DF=1 staan bij PMTUD.
+
+### PMTUD Black Hole probleem
+
+Als een firewall onderweg ICMP-berichten blokkeert, ontvangt de zender nooit de MTU-info. Het resultaat:
+
+- TCP SYN/SYN-ACK lukt (kleine packets)
+- Grotere datapakketten worden gedropt zonder feedback
+- De verbinding "hangt"
+
+Dit heet een **PMTUD black hole**. Oplossing: RFC 4821 (Packetization Layer PMTUD) probeert geleidelijk kleinere segmenten via TCP, zonder afhankelijkheid van ICMP.
 
 ### belangrijk voor examen
 
-Path MTU discovery werkt alleen goed als routers **niet fragmenteren**, zodat de zender leert welke packetgrootte echt past op het volledige pad.
+Path MTU discovery werkt alleen goed als routers **niet fragmenteren** (DF=1), zodat de zender via **ICMP Type 3 Code 4** leert welke packetgrootte echt past op het volledige pad. Fragmentatie en PMTUD zijn **onverenigbaar**.
 
 ## Samenvatting van het hoofdstuk
 
@@ -641,7 +726,8 @@ En in elk blok zie je opnieuw hetzelfde patroon: de theorie is mooi, maar de ech
 - De verschillende benaderingen van congestiecontrole
 - Waarom **traffic-aware routing** moeilijk is door oscillatie
 - Wat **admission control** doet
-- Het verschil tussen **choke packets**, **ECN** en **RED**
+- Het verschil tussen **choke packets**, **ECN** en **RED** — inclusief vergelijking op snelheid, overhead, deployment en eerlijkheid
+- Waarom **RED** het meest gedeployed is (enkel routerwijzigingen nodig)
 - Waarom **queuing delay** vaak een nuttiger vroeg signaal is dan packet loss
 - De drie bouwstenen van **QoS**
 - Wat een **traffic flow** is

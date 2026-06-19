@@ -131,9 +131,25 @@ Dus:
 - het frame moet lang genoeg duren
 - zodat een collision nog merkbaar is tijdens de transmissie
 
+### De wiskundige relatie
+
+De minimale framegrootte is direct gekoppeld aan de kabellengte en de snelheid:
+
+```text
+T_transmissie >= 2 x T_propagatie
+```
+
+Bij 10 Mbps classic Ethernet:
+
+- Minimum frame = 64 bytes = 512 bits
+- T_transmissie = 512 bits / 10 Mbps = 51,2 us
+- Maximale kabellengte = 51,2 us x 200 m/us / 2 = **~2560 m**
+
+Als het frame korter zou zijn dan 64 bytes, wordt het **gepad** (padding) met opvulbytes tot aan die 64 bytes (inclusief header en CRC).
+
 ### belangrijk voor examen
 
-De minimum frame length in classic Ethernet hangt samen met **collision detection**. Het frame moet lang genoeg zijn zodat een zender een botsing nog kan opmerken vóór hij klaar is met zenden.
+De minimum frame length in classic Ethernet hangt samen met **collision detection**. Het frame moet lang genoeg zijn zodat een zender een botsing nog kan opmerken voor hij klaar is met zenden. Bij hogere snelheden wordt de maximaal toelaatbare kabellengte strenger, of moeten extra mechanismen zoals carrier extension worden gebruikt.
 
 ## Ethernet gebruikt 1-persistent CSMA/CD
 
@@ -201,19 +217,56 @@ Een voordeel is praktische eenvoud:
 
 Maar qua capaciteit lost een hub het fundamentele probleem niet op.
 
-## Waarom switched Ethernet nodig was
+## Hub vs Switch: een fundamenteel verschil
 
-Na verloop van tijd werd duidelijk dat hubs niet schaalden. Als iedereen nog altijd hetzelfde medium deelt, dan blijft de totale capaciteit beperkt.
+Dit is een veelgesteld examenonderwerp. Het verschil tussen hubs en switches is architecturaal en heeft directe gevolgen voor prestaties, privacy en schaalbaarheid.
 
-Daarom kwam **switched Ethernet**.
+### Hub: een domme repeater
 
-Een switch werkt anders dan een hub:
+Een hub is een **fysieke repeater**. Hij kopieert elk ontvangen signaal naar **alle** poorten, zonder naar de inhoud te kijken.
 
-- hij ontvangt frames
-- kijkt naar het bestemmingsadres
-- stuurt het frame alleen door naar de juiste poort
+Dat betekent:
 
-Dat heeft grote gevolgen.
+- alle poorten delen dezelfde **collision domain**
+- slechts een host kan tegelijk zenden (half-duplex, CSMA/CD vereist)
+- de totale bandbreedte wordt gedeeld over alle hosts
+- **iedereen ziet al het verkeer** (geen privacy)
+
+Een voordeel is dat een hub goedkoop en eenvoudig is. En bij een kabelbreuk treft het typisch maar een host.
+
+### Switch: intelligent forwarden
+
+Een switch werkt fundamenteel anders:
+
+- hij leert **MAC-adressen** (bouwt een MAC-tabel op)
+- kijkt naar het bestemmings-MAC-adres van elk frame
+- stuurt het frame alleen door naar de **juiste poort**
+
+### Vergelijking
+
+| Aspect | Hub | Switch |
+| --- | --- | --- |
+| Werking | Fysieke repeater, kopieert naar alle poorten | Leert MAC-adressen, forwardt per poort |
+| Collision domain | Een gedeeld domain (alle poorten) | Per poort een apart domain |
+| Duplex | Half-duplex (CSMA/CD vereist) | Full-duplex mogelijk (geen collisions) |
+| Bandbreedte | Gedeeld over alle poorten | Dedicated per poort |
+| Privacy | Iedereen ziet al het verkeer | Enkel je eigen unicast-verkeer |
+| Kosten | Goedkoop, geen logica | Duurder, forwarding-logica nodig |
+
+### Wanneer is een hub beter dan een switch?
+
+Dit klinkt als een strikvraag, maar er zijn situaties:
+
+- **Network sniffing en protocol-analyse**: als je al het verkeer wil zien (bv. met Wireshark), is een hub ideaal omdat hij alles broadcast. Bij een switch is dit enkel mogelijk met **port mirroring** (SPAN), wat configuratie vereist.
+- **Lab-onderwijs**: om te demonstreren hoe collisions werken of hoe promiscuous mode data kan afluisteren.
+
+### Privacy-vergelijking over media
+
+| Medium | Afluisterbaarheid | Bescherming |
+| --- | --- | --- |
+| Hub Ethernet | Triviaal: promiscuous mode op elke poort | Fysieke toegangscontrole |
+| Switched Ethernet | Moeilijk, maar MAC flooding/spoofing kan switch in hub-modus forceren | Port security, 802.1X |
+| 802.11 WiFi | Inherent sniffable (radiogolven voor iedereen) | Volledig afhankelijk van encryptie (WPA2/3) |
 
 ## Wat verandert er door switching?
 
@@ -229,7 +282,7 @@ Zeker bij **full duplex** links is er geen klassieke collision-situatie meer, om
 
 ### waarom is dit zo’n grote verbetering?
 
-Omdat je van één gedeelde snelweg evolueert naar veel kleinere, onafhankelijke verbindingen die centraal gekoppeld worden.
+Omdat je van een gedeelde snelweg evolueert naar veel kleinere, onafhankelijke verbindingen die centraal gekoppeld worden.
 
 Dat verhoogt:
 
@@ -253,7 +306,14 @@ Als je de bits gewoon sneller verstuurt, dan wordt de tijd die nodig is om een b
 
 Maar collision detection hangt net af van timing en kabellengte. Dus als de bits veel sneller gaan, dan moet de maximaal bruikbare kabellengte omlaag.
 
-Dat was de prijs voor backwards compatibility.
+Bij 100 Mbps met hub:
+
+```text
+T_transmissie = 512 bits / 100 Mbps = 5,12 us
+Maximale kabellengte = 5,12 us x 200 m/us / 2 ≈ 256 m
+```
+
+Dat is **10 keer strenger** dan bij 10 Mbps. Dat was de prijs voor backwards compatibility.
 
 ## Gigabit Ethernet
 
@@ -283,6 +343,23 @@ Bij **10-Gigabit Ethernet** wordt die evolutie eigenlijk volledig doorgetrokken:
 - focus op point-to-point links
 
 Daardoor zijn de klassieke collision-problemen van gedeelde media hier in feite niet meer de kern van het ontwerp.
+
+## Overzicht: kabellengte en CSMA/CD per Ethernet-variant
+
+Dit overzicht is zeer examrelevant en vat de evolutie van Ethernet samen:
+
+| Configuratie | CSMA/CD | Kabellimiet | Bepaald door |
+| --- | --- | --- | --- |
+| Classic 10 Mbps, hub | Ja | ~2500 m | Collision-timing |
+| Fast 100 Mbps, hub | Ja | ~256 m (10x strenger) | Collision-timing |
+| Switched, half-duplex | Ja (per poort) | Per poort | Collision-timing per poort |
+| Switched, **full-duplex** | **Nee** | ~100 m (Cat5e) | **Enkel signaalattenuatie** |
+| Gigabit, half-duplex | Ja + carrier extension | Kort | Collision-timing + carrier extension |
+| 10-Gigabit | **Nee** (enkel full-duplex) | Fiber: km's, koper: ~100 m | Attenuatie |
+
+### waarom full-duplex de collision-limiet opheft
+
+Bij full-duplex zijn zenden en ontvangen op **aparte aderparen** (bij UTP) of aparte vezels (bij fiber). Collisions zijn dan fysiek onmogelijk, CSMA/CD wordt uitgeschakeld, en de collision-driven kabellimiet verdwijnt. De enige resterende limiet is **signaalattenuatie** (~100 m voor Cat5e).
 
 ## Overgang naar 802.11
 
@@ -389,27 +466,116 @@ Omdat een node niet altijd elk deel van de transmissie perfect fysiek hoeft te h
 
 NAV is de basis van virtual channel sensing in 802.11. Een station gebruikt die informatie om af te leiden hoe lang het medium nog bezet blijft.
 
+## RTS/CTS: oplossing voor hidden terminals
+
+Het RTS/CTS-mechanisme is de belangrijkste aanpak in 802.11 om het hidden terminal probleem aan te pakken. Het bouwt voort op NAV.
+
+### Hoe werkt het?
+
+```text
+1. A -> B: RTS (bevat Duration = data + CTS + ACK)
+2. B -> all: CTS (bevat Duration = data + ACK) -- C hoort dit!
+3. C stelt zijn NAV in en zwijgt
+4. A -> B: DATA (collision-vrij)
+5. B -> A: ACK
+```
+
+Het cruciale punt is stap 2: zelfs als C de RTS van A niet kon horen (hidden terminal), hoort C wel de CTS van B. Daardoor weet C dat het kanaal bezet is en stelt hij zijn NAV in.
+
+### Lost RTS/CTS het exposed terminal probleem op?
+
+**Nee**, het maakt het zelfs **erger**. In het exposed terminal scenario hoort C de RTS van B en stelt zijn NAV onnodig in, waardoor C nog langer wacht dan met enkel carrier sense.
+
+### Wanneer RTS/CTS gebruiken?
+
+RTS/CTS heeft overhead: twee extra controleframes per datatransmissie. Die overhead is enkel gerechtvaardigd wanneer de kost van een collision op een groot dataframe hoger is dan de RTS/CTS-overhead.
+
+Daarom wordt RTS/CTS typisch alleen ingeschakeld voor **grote frames**. De standaard RTS-threshold is 2347 bytes, en in de praktijk staat het mechanisme vaak uitgeschakeld.
+
+### belangrijk voor examen
+
+- RTS/CTS lost het **hidden terminal** probleem op (via CTS + NAV)
+- RTS/CTS lost het **exposed terminal** probleem **niet** op (maakt het zelfs erger)
+- Enkel zinvol bij grote frames door de overhead van twee extra controleframes
+
+## Wifi packet loss en TCP: een cross-layer probleem
+
+Een belangrijk cross-layer inzicht is dat TCP packet loss op wifi **verkeerd interpreteert**.
+
+TCP (Tahoe/Reno) interpreteert **alle** packet loss als congestie en halveert het congestion window (AIMD). Maar op wifi zijn de meeste verliezen veroorzaakt door:
+
+- Radiointerferentie (andere netwerken, magnetrons, Bluetooth)
+- Hidden terminal collisions
+- Signaalzwakte / multipath fading
+- Uitgeputte MAC-layer retransmissies (802.11 herprobeert intern tot 7x)
+
+Geen van deze is congestie. TCP "bestraft" zichzelf onnodig, waardoor de throughput dramatisch daalt op een niet-gecongestioneerd netwerk.
+
+### Oplossingen
+
+| Aanpak | Laag | Werking |
+| --- | --- | --- |
+| **ECN** | Netwerk | Expliciet congestiesignaal, geen verwarring met link-fouten |
+| **Data-link ARQ** | Data link | 802.11 ACKs + retransmissie maskeren link-verlies lokaal |
+| **TCP Westwood** | Transport | Schat beschikbare bandbreedte via ACK-timing i.p.v. verlies |
+
+### waarom is dit belangrijk?
+
+Dit verklaart ook waarom 802.11 **acknowledged connectionless** service biedt (in tegenstelling tot Ethernet's **unacknowledged connectionless**). De link-layer ACKs en retransmissies proberen lokaal verlies op te lossen zodat TCP het niet als congestie misverstaat.
+
 ## Power saving in 802.11
 
-Wifi houdt ook rekening met energieverbruik.
+Wifi houdt ook rekening met energieverbruik. Dit is een examonderwerp dat de twee fundamentele strategieen voor power saving in 802.11 behandelt.
 
-De slides tonen twee basisideeën.
+De slides tonen twee basisbenaderingen die fundamenteel verschillen in **wie het wake-schema bepaalt**.
 
-### 1. Beacon-based power saving
+### Strategie 1: Beacon + TIM / PS-Poll (AP-gestuurd)
 
-Een access point verstuurt periodiek **beacon frames**.
+Een access point verstuurt periodiek **beacon frames**. Elk beacon bevat een **Traffic Indication Map (TIM)**: een bitmap die aangeeft voor welke slapende clients er gebufferde data klaarstaat.
 
-Daarmee kan het laten weten dat er buffered data klaarstaat voor een client. Tussen die beaconmomenten kan de client slapen.
+Het mechanisme werkt als volgt:
 
-### 2. Client-triggered timing
+1. De client informeert het AP dat hij in **power save mode** gaat
+2. Het AP buffert alle frames bestemd voor die client
+3. De client waakt enkel op voor **beacon-momenten** (typisch elke 100 ms)
+4. De client controleert de TIM in het beacon
+5. Als de TIM aangeeft dat er data voor hem klaarstaat, stuurt de client een **PS-Poll** frame
+6. Het AP levert de gebufferde data af
+7. Tussen beaconmomenten slaapt de client
 
-Een andere aanpak is dat de client slaapt tot hij zelf iets moet sturen. Het access point bewaart verkeer voor die client en stuurt het meteen na de eerstvolgende relevante uitwisseling terug.
+Dit is geschikt voor **battery-powered devices die meestal idle zijn**: een smartphone in standby, een sensor die zelden data ontvangt.
 
-### intuïtie
+### Strategie 2: APSD (Automatic Power Save Delivery, client-gestuurd)
 
-Beide mechanismen proberen hetzelfde probleem op te lossen:
+Bij **APSD** bepaalt de **client** wanneer hij waker wordt, niet het AP. De client waakt op vaste intervallen die hij zelf kiest, typisch afgestemd op zijn applicatie.
 
-de radio hoeft niet constant actief te zijn, maar de client mag toch geen belangrijke data missen.
+Het mechanisme:
+
+1. De client waakt enkel wanneer hij **zelf data wil sturen**
+2. Het AP levert gebufferde downlink-data mee in hetzelfde wake-window
+3. De client kan zo lang slapen als hij wil tussen zijn eigen wake-momenten
+
+Dit is geschikt voor **periodieke applicaties** met voorspelbare timing, zoals VoIP (elke 20 ms een spraakframe) of periodieke telemetrie.
+
+### Kernverschil tussen de twee strategieen
+
+| Aspect | Beacon + TIM / PS-Poll | APSD |
+| --- | --- | --- |
+| Wie bepaalt wake-schema | **AP** (beacon-interval) | **Client** (eigen applicatie-ritme) |
+| Geschikt voor | Idle devices, onvoorspelbaar verkeer | Periodieke applicaties (VoIP, telemetrie) |
+| Efficiëntie | Minder bij voorspelbaar verkeer (wacht op beacon) | Beter bij voorspelbare timing |
+| Overhead | PS-Poll per opvraging | Minimaal (data piggybacked op eigen transmissie) |
+
+### Cross-layer vergelijking
+
+De twee 802.11 power saving strategieen weerspiegelen dezelfde fundamentele afweging als bij BMAC vs TSMP:
+
+- **Beacon + TIM** is vergelijkbaar met **BMAC**: het netwerk (AP) geeft periodieke signalen, de client reageert asynchroon
+- **APSD** is vergelijkbaar met **TSMP**: de client werkt op een voorspelbaar schema, waardoor het energieverbruik beter geoptimaliseerd kan worden
+
+### belangrijk voor examen
+
+802.11 heeft twee power saving strategieen. Bij Beacon+TIM bepaalt het **AP** wanneer de client kan ophalen. Bij APSD bepaalt de **client** het schema. APSD is efficienter bij voorspelbare applicaties; Beacon+TIM is flexibeler voor onvoorspelbaar verkeer.
 
 ## 802.11 frame structure
 

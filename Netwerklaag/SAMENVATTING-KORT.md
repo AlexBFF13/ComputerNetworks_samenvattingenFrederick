@@ -80,7 +80,7 @@ Als load-signaal is **queuing delay** een vroeger/beter signaal dan **packet los
 
 **DHCP** (applicatielaag) deelt adressen automatisch uit via **leases** (kort = efficiënter, lang = minder serverbelasting). **Private ranges**: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`.
 
-**NAT**: vertaalt private adressen naar één publiek adres, gebruikt **poorten** als index in de vertaaltabel. Problemen: breekt **end-to-end model**, is impliciet connection-oriented, werkt slecht met protocollen die IP-adressen in de payload meesturen.
+**NAT**: vertaalt private adressen naar één publiek adres, gebruikt **poorten** als index in de vertaaltabel. Problemen: breekt **end-to-end model**, is impliciet connection-oriented, werkt slecht met protocollen die IP-adressen in de payload meesturen (FTP, SIP, IPsec). **Traversal**: STUN (publiek adres ontdekken), TURN (relay), UPnP (automatische port mapping), connection reversal, ALG (application-level gateway).
 
 | | IPv4 | IPv6 |
 |---|---|---|
@@ -92,6 +92,28 @@ Als load-signaal is **queuing delay** een vroeger/beter signaal dan **packet los
 | Config | DHCP | SLAAC (stateless autoconfiguration) |
 
 IPv6-notatie: hex groepen met `:`, leidende nullen weglaten, en **`::` mag maar één keer** per adres gebruikt worden. Belangrijke ranges: **global unicast** (`2000::/3`, routable), **unique local** (`fc00::/7`, privénetwerken), **link local** (`fe80::/10`, niet gerouteerd, verplicht per interface).
+
+### IPv6 SLAAC en privacy
+
+**SLAAC** (Stateless Address Autoconfiguration): host genereert zelf een IPv6-adres uit netwerkprefix (via Router Advertisement) + **EUI-64** interface identifier (afgeleid van MAC-adres: MAC splitsen, `ff:fe` invoegen, 7e bit flippen).
+
+**Privacyprobleem**: MAC-adres is permanent → EUI-64-adres is overal hetzelfde → gebruiker traceerbaar over netwerken + fabrikant (OUI) zichtbaar.
+
+**Tegenmaatregelen**: RFC 4941 (random tijdelijke adressen), RFC 7217 (stabiel maar niet-afleidbaar per netwerk), MAC-randomisatie.
+
+**SLAAC vs DHCPv6**: SLAAC = stateless, geen server nodig, schaalt beter. DHCPv6 = stateful, meer controle (DNS, logging), maar server = single point of failure.
+
+### Subnetting: methode
+
+1. Prefix → subnetmask (`/25` = `255.255.255.128`)
+2. Netwerkadres = IP AND subnetmask
+3. Broadcastadres = netwerkadres OR inverse mask (alle hostbits = 1)
+4. Eerste host = netwerkadres + 1, laatste host = broadcast - 1
+5. Aantal hosts = 2^(32-prefix) - 2
+
+### IoT en IP stack (6LoWPAN)
+
+IPv6 voor IoT (802.15.4): **6LoWPAN** = adaptielaag die IPv6 aanpast aan beperkte netwerken (headercompressie 40→paar bytes, fragmentatie bij kleine MTU). IPv4 ongeschikt: te weinig adressen, geen SLAAC. Voordeel IP op IoT: end-to-end bereikbaarheid, bestaande tools. Nadeel: overhead voor constrained devices.
 
 **ICMP** = foutmeldings-/diagnosekanaal van IP: **destination unreachable** (o.a. Type 3/Code 4 voor PMTUD), **time exceeded** (TTL=0), **redirect**, **echo request/reply** (ping). **Traceroute** gebruikt stijgende TTL (1,2,3,...) zodat elke router op het pad een "time exceeded" terugstuurt.
 
@@ -105,3 +127,6 @@ IPv6-notatie: hex groepen met `:`, leidende nullen weglaten, en **`::` mag maar 
 - Bij congestienotificatie: **choke packets** (traag, veel overhead) vs **ECN** (snel, weinig overhead, markeert bestaand packet) vs **RED** (vroege willekeurige drops, treft snelle zenders harder) - ken de trade-offs.
 - **ARP werkt enkel binnen het subnet**: een host buiten je subnet bereik je via je default gateway, en je ARP-cache bevat dan ook enkel een entry voor die gateway, niet voor de eindbestemming.
 - Reken-/notatieklassiekers: CIDR-notatie en subnetmask correct kunnen omzetten (bv. `/25` = `255.255.255.128`), **longest prefix match** bij overlappende routes, en IPv6 `::`-verkorting mag **maar één keer**.
+- **IPv6 SLAAC + EUI-64 = privacyprobleem**: MAC-adres in het IPv6-adres maakt tracking over netwerken mogelijk. Herkenbaar aan `ff:fe` in het midden van het interface-ID.
+- **NAT-traversal**: inkomende verbindingen geblokkeerd → STUN/TURN/UPnP/connection reversal nodig. FTP, SIP en P2P breken achter NAT.
+- **6LoWPAN**: adaptielaag voor IPv6 op 802.15.4 (IoT) — headercompressie + fragmentatie.
