@@ -82,6 +82,12 @@ Die worden dan verder ingekapseld:
 
 Dat lijkt eenvoudig, maar het is goed om die woorden correct te gebruiken. Een term als "packet" is dus niet automatisch hetzelfde als "segment".
 
+```
+[ IP header | TCP/UDP segment ] = packet
+                    ↑
+            [ TCP/UDP header | applicatiedata ] = segment
+```
+
 ## Generalized transport primitives
 
 De slides tonen dat transportdiensten op een abstract niveau beschreven kunnen worden via een set **primitives**.

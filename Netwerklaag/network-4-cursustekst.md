@@ -566,9 +566,9 @@ Elke IPv6-interface moet er normaal één hebben.
 
 Je moet minstens het onderscheid kennen tussen:
 
-- **global unicast**
-- **unique local**
-- **link local**
+- **global unicast** wereldwijd routeerbaar
+- **unique local** privé/intern gebruik, niet routeerbaar op het publieke internet 
+- **link local** enkel geldig op één lokaal segment
 
 ## Interface Identifier en EUI-64
 

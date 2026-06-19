@@ -1,132 +1,132 @@
-# Netwerklaag (Laag 3) - Korte samenvatting
+# Network Layer (Layer 3) — Short Summary
 
-De **network layer** zorgt voor **end-to-end delivery**: een packet van bron naar bestemming krijgen over meerdere routers heen, ongeacht onderliggende technologie. Twee kerntaken staan hierbij centraal: **routing** (het pad bepalen) en **forwarding** (het packet effectief doorsturen op basis van de routingtabel), plus alles rond **IP-adressering** die dat mogelijk maakt.
+The **network layer** provides **end-to-end delivery**: getting a packet from source to destination across multiple routers, regardless of underlying technology. Two core tasks are central: **routing** (determining the path) and **forwarding** (actually forwarding the packet based on the routing table), plus everything around **IP addressing** that makes this possible.
 
 ## Connectionless vs connection-oriented
 
-Routers werken volgens **store-and-forward**: een packet wordt volledig ontvangen, gecontroleerd en dan pas doorgestuurd.
+Routers operate using **store-and-forward**: a packet is fully received, checked and only then forwarded.
 
-- **Connectionless (datagram)**: elk packet draagt het volledige eindadres en wordt apart gerouteerd. Verschillende packets van dezelfde flow kunnen via verschillende routes lopen. **IP is hét voorbeeld.**
-- **Connection-oriented (virtual circuit)**: bij setup wordt een circuit afgesproken; packets dragen daarna enkel een **circuit-/labelidentifier** (lokaal geldig, kan per hop veranderen = **label switching**). **MPLS** is het voorbeeld.
+- **Connectionless (datagram)**: each packet carries the full destination address and is routed separately. Different packets from the same flow can take different routes. **IP is the prime example.**
+- **Connection-oriented (virtual circuit)**: during setup a circuit is agreed upon; packets then carry only a **circuit/label identifier** (locally valid, can change per hop = **label switching**). **MPLS** is the example.
 
 | | Virtual circuits | Datagrams |
 |---|---|---|
-| Voordeel | eenvoudigere routing, kleinere tabellen, QoS/resource-reservatie mogelijk | geen setup, sneller starten, robuuster bij routercrash |
-| Nadeel | vastgelegd pad, setup-overhead | geen garanties op volgorde/pad |
+| Advantage | simpler routing, smaller tables, QoS/resource reservation possible | no setup, faster start, more robust on router crash |
+| Disadvantage | fixed path, setup overhead | no guarantees on order/path |
 
-## Routing-algoritmes
+## Routing algorithms
 
-Een goed algoritme is **correct, simpel, robuust, stabiel, fair en efficiënt**. Het **optimality principle**: als J op het optimale pad van I naar K ligt, dan ligt het optimale pad van J naar K ook op dat pad. Alle optimale paden naar één bestemming vormen samen een **sink tree**.
+A good algorithm is **correct, simple, robust, stable, fair and efficient**. The **optimality principle**: if J lies on the optimal path from I to K, then the optimal path from J to K also lies on that path. All optimal paths to one destination together form a **sink tree**.
 
-**Dijkstra**: vanaf bronnode telkens de node met de laagste voorlopige kost permanent maken, dan de buren herberekenen. Basis van link-state routing.
+**Dijkstra**: from the source node, repeatedly make the node with the lowest tentative cost permanent, then recalculate the neighbors. Basis of link-state routing.
 
-| | Distance vector (Bellman-Ford) | Link state (bv. OSPF) |
+| | Distance vector (Bellman-Ford) | Link state (e.g. OSPF) |
 |---|---|---|
-| Wat wordt gedeeld? | eigen beste schattingen naar buren | eigen linkkosten naar buren (link-state packets), via **flooding** |
-| Berekening | `kost via buur = kost naar buur + schatting buur->bestemming` | elke router reconstrueert de hele graaf en draait zelf Dijkstra |
-| Grootste probleem | **count-to-infinity**: bij wegvallen van een route ontstaat een lus in de redenering, afstand stijgt traag (3,4,5,6...) tot "infinity" omdat routers enkel lokale info hebben | meer rekenkost, opslag en control traffic |
-| Convergentie | slecht nieuws traag, goed nieuws snel | sneller en correcter |
+| What is shared? | own best estimates to neighbors | own link costs to neighbors (link-state packets), via **flooding** |
+| Computation | `cost via neighbor = cost to neighbor + neighbor's estimate to destination` | each router reconstructs the entire graph and runs Dijkstra itself |
+| Biggest problem | **count-to-infinity**: when a route disappears, a reasoning loop forms, distance rises slowly (3,4,5,6...) to "infinity" because routers only have local information | more computation, storage and control traffic |
+| Convergence | bad news slow, good news fast | faster and more correct |
 
-**Link-state in 5 stappen**: (1) buren ontdekken via **HELLO**, (2) linkkosten bepalen (bandbreedte/delay), (3) link-state packet maken (zender, **sequence number**, **age**, buren+kosten), (4) flooding (naar alle links behalve inkomende), (5) Dijkstra draaien. Flooding wordt beperkt via **TTL/hopcounter**, **sequence numbers** (duplicaten weggooien) en **age** (oude info negeren).
+**Link-state in 5 steps**: (1) discover neighbors via **HELLO**, (2) determine link costs (bandwidth/delay), (3) create link-state packet (sender, **sequence number**, **age**, neighbors+costs), (4) flooding (to all links except incoming), (5) run Dijkstra. Flooding is limited via **TTL/hop counter**, **sequence numbers** (discard duplicates) and **age** (ignore old info).
 
-**Hiërarchische routing**: regio's groeperen zodat routers enkel toegangspunten van andere regio's kennen i.p.v. alle details. Geeft kleinere tabellen en betere schaalbaarheid, ten koste van soms niet-optimale paden.
+**Hierarchical routing**: group regions so routers only know access points of other regions instead of all details. Gives smaller tables and better scalability, at the cost of sometimes non-optimal paths.
 
-**Delivery models**: **unicast** (1-naar-1), **broadcast** (naar alle), **multicast** (naar groep). Beste broadcast qua aantal packets = **spanning tree** (geen lussen, dekt alle routers), maar vereist globale kennis.
+**Delivery models**: **unicast** (1-to-1), **broadcast** (to all), **multicast** (to group). Best broadcast in terms of number of packets = **spanning tree** (no loops, covers all routers), but requires global knowledge.
 
-## Congestion control, QoS en internetworking
+## Congestion control, QoS and internetworking
 
-Congestie wordt aangepakt via een combinatie: vermijden (traffic-aware routing - werkt slecht door **oscillatie**), weigeren (**admission control**), signaleren en uiteindelijk **droppen**. Meer buffers lost het niet op (te lange wachttijden = instabiliteit).
+Congestion is addressed via a combination: avoidance (traffic-aware routing - works poorly due to **oscillation**), rejection (**admission control**), signaling and ultimately **dropping**. More buffers do not solve it (excessive wait times = instability).
 
-Drie throttling-signalen/mechanismen:
+Three throttling signals/mechanisms:
 
-| Mechanisme | Werking | Snelheid | Overhead |
+| Mechanism | Operation | Speed | Overhead |
 |---|---|---|---|
-| **Choke packets** | router stuurt apart controlpacket naar zender | traag (volledige RTT) | hoog |
-| **ECN** | router markeert gewoon packet, ontvanger meldt het terug aan zender | iets trager dan choke (+1 RTT) | laag |
-| **RED** | router dropt vroeg en willekeurig bij stijgende queue, treft sneldere zenders relatief vaker | snel | extra hertransmissies |
+| **Choke packets** | router sends separate control packet to sender | slow (full RTT) | high |
+| **ECN** | router marks regular packet, receiver reports back to sender | slightly slower than choke (+1 RTT) | low |
+| **RED** | router drops early and randomly with rising queue, hits faster senders relatively more often | fast | extra retransmissions |
 
-Als load-signaal is **queuing delay** een vroeger/beter signaal dan **packet loss** (dat komt te laat).
+As a load signal, **queuing delay** is an earlier/better signal than **packet loss** (which comes too late).
 
-**QoS = 3 bouwstenen**: traffic shaping, packet scheduling, admission control.
-- **Leaky bucket**: emmer met capaciteit **B** (burst-tolerantie) en afvoersnelheid **R** (lange-termijn rate). B=0 -> volledig vlakke output.
-- **Scheduling**: FIFO (simpel, **tail drop**, niet fair) -> **Fair Queuing** (elke flow eigen queue, beurtelings - maar groot-packettrucje kan dit omzeilen) -> **Weighted Fair Queuing** (gewichten per flow, bv. realtime > achtergrond).
+**QoS = 3 building blocks**: traffic shaping, packet scheduling, admission control.
+- **Leaky bucket**: bucket with capacity **B** (burst tolerance) and drain rate **R** (long-term rate). B=0 → completely flat output.
+- **Scheduling**: FIFO (simple, **tail drop**, not fair) → **Fair Queuing** (each flow gets its own queue, round-robin — but large-packet tricks can circumvent this) → **Weighted Fair Queuing** (weights per flow, e.g. real-time > background).
 
-**Internetworking**: netwerken verschillen in adressering, MTU, routing, QoS, security. Twee aanpakken: **translation** (direct omzetten) vs **indirection** (gemeenschappelijke tussenlaag - dit is **IP**). **Switches = laag 2 (frames)**, **routers = laag 3 (packets)**. **Tunneling** = packet van het ene type inkapselen in een ander netwerktype (bv. IPv6-over-IPv4), telt als 1 hop voor hogere lagen.
+**Internetworking**: networks differ in addressing, MTU, routing, QoS, security. Two approaches: **translation** (direct conversion) vs **indirection** (common intermediate layer — this is **IP**). **Switches = layer 2 (frames)**, **routers = layer 3 (packets)**. **Tunneling** = encapsulating a packet of one type in another network type (e.g. IPv6-over-IPv4), counts as 1 hop for higher layers.
 
-**Fragmentatie**: nodig door verschillende **MTU's**. Transparant (routers fragmenteren én reassembleren - extra routerwerk) vs niet-transparant (hosts moeten reassembleren). Beter: **Path MTU Discovery** - zender stuurt met **DF-bit**, te grote packets worden gedropt + ICMP-foutmelding teruggestuurd, zender verlaagt packetgrootte. PMTUD en gewone fragmentatie zijn **incompatibel** (fragmentatie verbergt net het MTU-probleem).
+**Fragmentation**: needed due to different **MTUs**. Transparent (routers fragment and reassemble — extra router work) vs non-transparent (hosts must reassemble). Better: **Path MTU Discovery** — sender sends with **DF bit**, oversized packets are dropped + ICMP error message sent back, sender reduces packet size. PMTUD and regular fragmentation are **incompatible** (fragmentation hides the MTU problem).
 
-## OSPF, BGP, mobility en ad-hoc
+## OSPF, BGP, mobility and ad-hoc
 
-- **AS (Autonomous System)**: netwerk onder beheer van één organisatie, met **ASN**.
-- **Intra-domain** (binnen een AS) -> **interior gateway protocol** = **OSPF**.
-- **Inter-domain** (tussen AS'en) -> **exterior gateway protocol** = **BGP**.
+- **AS (Autonomous System)**: network under management of one organization, with **ASN**.
+- **Intra-domain** (within an AS) → **interior gateway protocol** = **OSPF**.
+- **Inter-domain** (between ASes) → **exterior gateway protocol** = **BGP**.
 
-**OSPF**: link-state protocol (HELLO, flooding, Dijkstra), ondersteunt hiërarchie via **areas** (**Area 0 = backbone**, stub areas hangen erop aan) en **ECMP** (load balancing over paden met gelijke kost). OSPF-berichten reizen als gewone IP-packets.
+**OSPF**: link-state protocol (HELLO, flooding, Dijkstra), supports hierarchy via **areas** (**Area 0 = backbone**, stub areas hang off it) and **ECMP** (load balancing over paths with equal cost). OSPF messages travel as regular IP packets.
 
-**BGP**: distance-vector-achtig maar werkt op **AS-paths** i.p.v. afstanden, en is gedreven door **policy** (welke routes accepteren/aankondigen), niet puur kortste pad. Belangrijke begrippen:
-- **Peering**: AS'en wisselen verkeer uit (vaak via **IXP**), gratis, en **niet transitief** (A-B en B-C peering geeft A geen gratis transit naar C).
-- **Transit**: betalen om verkeer verder gedragen te krijgen.
-- **iBGP**: boundary routers binnen een AS delen externe routes; intern bereikbaarheid via OSPF. Vuistregel: OSPF kiest de weg *binnen* het AS, BGP kiest *via welk AS* je naar buiten gaat.
+**BGP**: distance-vector-like but operates on **AS paths** instead of distances, and is driven by **policy** (which routes to accept/announce), not purely shortest path. Key concepts:
+- **Peering**: ASes exchange traffic (often via **IXP**), free, and **not transitive** (A-B and B-C peering does not give A free transit to C).
+- **Transit**: paying to have traffic carried further.
+- **iBGP**: boundary routers within an AS share external routes; internal reachability via OSPF. Rule of thumb: OSPF chooses the path *within* the AS, BGP chooses *via which AS* you go outward.
 
-**Mobility**: mobiele host houdt een vast **home address**; op nieuwe locatie krijgt hij een **care-of address**, gemeld aan zijn **home agent**, die verkeer dan tunnelt. Dit geeft **triangle routing** (remote host -> home agent -> mobile host) en een **securityrisico** (vals care-of address registreren = verkeer omleiden).
+**Mobility**: mobile host keeps a fixed **home address**; at a new location it gets a **care-of address**, reported to its **home agent**, which then tunnels traffic. This causes **triangle routing** (remote host → home agent → mobile host) and a **security risk** (registering a fake care-of address = redirecting traffic).
 
-**Ad-hoc netwerken**: geen vaste infrastructuur, nodes = host + router tegelijk, **resource-/energy-constrained en unreliable**. **AODV** is **reactief/on-demand**: floodt een **ROUTE_REQUEST** (met sequence number + TTL, TTL stijgt stapsgewijs om floods te beperken) tot een **ROUTE_REPLY** terugkomt langs het reverse path. AODV pakt count-to-infinity aan via **destination sequence numbers**: hogere sequence = verser, oudere routes worden verworpen. Lange time-outs blijven wel een probleem.
+**Ad-hoc networks**: no fixed infrastructure, nodes = host + router simultaneously, **resource-/energy-constrained and unreliable**. **AODV** is **reactive/on-demand**: floods a **ROUTE_REQUEST** (with sequence number + TTL, TTL increases stepwise to limit floods) until a **ROUTE_REPLY** comes back along the reverse path. AODV addresses count-to-infinity via **destination sequence numbers**: higher sequence = fresher, older routes are discarded. Long timeouts remain a problem.
 
-## IP, adressering, NAT, ICMP en ARP
+## IP, addressing, NAT, ICMP and ARP
 
-**IPv4-header** (variabele lengte, vandaar **IHL**): belangrijkste velden zijn **TTL** (verlaagd per hop, voorkomt eindeloze lussen), **Protocol** (TCP/UDP/ICMP), **header checksum** (per hop herberekend omdat TTL wijzigt), en **Identification + MF + Fragment Offset** (samen verantwoordelijk voor reassemblage van fragmenten). DF-bit = Don't Fragment (zie PMTUD). Max. packetgrootte = 64 KB.
+**IPv4 header** (variable length, hence **IHL**): most important fields are **TTL** (decremented per hop, prevents infinite loops), **Protocol** (TCP/UDP/ICMP), **header checksum** (recalculated per hop because TTL changes), and **Identification + MF + Fragment Offset** (together responsible for reassembly of fragments). DF bit = Don't Fragment (see PMTUD). Max packet size = 64 KB.
 
-**Adressering**: 32-bit IPv4-adres = network prefix + host part, genoteerd in **CIDR** (bv. `/24`) of subnetmask (bv. `255.255.255.0`). Routers werken met **prefixen**, niet losse hosts -> bij overlap wint de **longest prefix match**. Klassen (A/B/C) waren te grofkorrelig ("Three Bears Problem") en zijn vervangen door **CIDR** (flexibele prefixlengtes, supernetting).
+**Addressing**: 32-bit IPv4 address = network prefix + host part, written in **CIDR** (e.g. `/24`) or subnet mask (e.g. `255.255.255.0`). Routers work with **prefixes**, not individual hosts → on overlap the **longest prefix match** wins. Classes (A/B/C) were too coarse-grained ("Three Bears Problem") and were replaced by **CIDR** (flexible prefix lengths, supernetting).
 
-**DHCP** (applicatielaag) deelt adressen automatisch uit via **leases** (kort = efficiënter, lang = minder serverbelasting). **Private ranges**: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`.
+**DHCP** (application layer) distributes addresses automatically via **leases** (short = more efficient, long = less server load). **Private ranges**: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`.
 
-**NAT**: vertaalt private adressen naar één publiek adres, gebruikt **poorten** als index in de vertaaltabel. Problemen: breekt **end-to-end model**, is impliciet connection-oriented, werkt slecht met protocollen die IP-adressen in de payload meesturen (FTP, SIP, IPsec). **Traversal**: STUN (publiek adres ontdekken), TURN (relay), UPnP (automatische port mapping), connection reversal, ALG (application-level gateway).
+**NAT**: translates private addresses to one public address, uses **ports** as index in the translation table. Problems: breaks **end-to-end model**, is implicitly connection-oriented, works poorly with protocols that carry IP addresses in the payload (FTP, SIP, IPsec). **Traversal**: STUN (discover public address), TURN (relay), UPnP (automatic port mapping), connection reversal, ALG (application-level gateway).
 
 | | IPv4 | IPv6 |
 |---|---|---|
-| Adreslengte | 32 bit | 128 bit |
-| Header | variabel (min. 20 bytes, IHL-veld, options) | vast **40 bytes**, extra's in extension headers |
-| Checksum | header checksum, per hop herberekend | **geen** header checksum |
-| Fragmentatie | door routers mogelijk | routers fragmenteren **niet** -> PMTUD verplicht; min. MTU **1280 bytes** |
-| Adrestypes | unicast/broadcast/multicast | **unicast/multicast/anycast** (geen broadcast meer) |
+| Address length | 32 bit | 128 bit |
+| Header | variable (min. 20 bytes, IHL field, options) | fixed **40 bytes**, extras in extension headers |
+| Checksum | header checksum, recalculated per hop | **no** header checksum |
+| Fragmentation | possible by routers | routers do **not** fragment → PMTUD mandatory; min. MTU **1280 bytes** |
+| Address types | unicast/broadcast/multicast | **unicast/multicast/anycast** (no more broadcast) |
 | Config | DHCP | SLAAC (stateless autoconfiguration) |
 
-IPv6-notatie: hex groepen met `:`, leidende nullen weglaten, en **`::` mag maar één keer** per adres gebruikt worden. Belangrijke ranges: **global unicast** (`2000::/3`, routable), **unique local** (`fc00::/7`, privénetwerken), **link local** (`fe80::/10`, niet gerouteerd, verplicht per interface).
+IPv6 notation: hex groups with `:`, drop leading zeros, and **`::` may only be used once** per address. Important ranges: **global unicast** (`2000::/3`, routable), **unique local** (`fc00::/7`, private networks), **link local** (`fe80::/10`, not routed, mandatory per interface).
 
-### IPv6 SLAAC en privacy
+### IPv6 SLAAC and privacy
 
-**SLAAC** (Stateless Address Autoconfiguration): host genereert zelf een IPv6-adres uit netwerkprefix (via Router Advertisement) + **EUI-64** interface identifier (afgeleid van MAC-adres: MAC splitsen, `ff:fe` invoegen, 7e bit flippen).
+**SLAAC** (Stateless Address Autoconfiguration): host generates its own IPv6 address from network prefix (via Router Advertisement) + **EUI-64** interface identifier (derived from MAC address: split MAC, insert `ff:fe`, flip 7th bit).
 
-**Privacyprobleem**: MAC-adres is permanent → EUI-64-adres is overal hetzelfde → gebruiker traceerbaar over netwerken + fabrikant (OUI) zichtbaar.
+**Privacy problem**: MAC address is permanent → EUI-64 address is the same everywhere → user is trackable across networks + manufacturer (OUI) visible.
 
-**Tegenmaatregelen**: RFC 4941 (random tijdelijke adressen), RFC 7217 (stabiel maar niet-afleidbaar per netwerk), MAC-randomisatie.
+**Countermeasures**: RFC 4941 (random temporary addresses), RFC 7217 (stable but non-derivable per network), MAC randomization.
 
-**SLAAC vs DHCPv6**: SLAAC = stateless, geen server nodig, schaalt beter. DHCPv6 = stateful, meer controle (DNS, logging), maar server = single point of failure.
+**SLAAC vs DHCPv6**: SLAAC = stateless, no server needed, scales better. DHCPv6 = stateful, more control (DNS, logging), but server = single point of failure.
 
-### Subnetting: methode
+### Subnetting: method
 
-1. Prefix → subnetmask (`/25` = `255.255.255.128`)
-2. Netwerkadres = IP AND subnetmask
-3. Broadcastadres = netwerkadres OR inverse mask (alle hostbits = 1)
-4. Eerste host = netwerkadres + 1, laatste host = broadcast - 1
-5. Aantal hosts = 2^(32-prefix) - 2
+1. Prefix → subnet mask (`/25` = `255.255.255.128`)
+2. Network address = IP AND subnet mask
+3. Broadcast address = network address OR inverse mask (all host bits = 1)
+4. First host = network address + 1, last host = broadcast - 1
+5. Number of hosts = 2^(32-prefix) - 2
 
-### IoT en IP stack (6LoWPAN)
+### IoT and IP stack (6LoWPAN)
 
-IPv6 voor IoT (802.15.4): **6LoWPAN** = adaptielaag die IPv6 aanpast aan beperkte netwerken (headercompressie 40→paar bytes, fragmentatie bij kleine MTU). IPv4 ongeschikt: te weinig adressen, geen SLAAC. Voordeel IP op IoT: end-to-end bereikbaarheid, bestaande tools. Nadeel: overhead voor constrained devices.
+IPv6 for IoT (802.15.4): **6LoWPAN** = adaptation layer that adapts IPv6 for constrained networks (header compression 40→few bytes, fragmentation with small MTU). IPv4 unsuitable: too few addresses, no SLAAC. Advantage of IP on IoT: end-to-end reachability, existing tools. Disadvantage: overhead for constrained devices.
 
-**ICMP** = foutmeldings-/diagnosekanaal van IP: **destination unreachable** (o.a. Type 3/Code 4 voor PMTUD), **time exceeded** (TTL=0), **redirect**, **echo request/reply** (ping). **Traceroute** gebruikt stijgende TTL (1,2,3,...) zodat elke router op het pad een "time exceeded" terugstuurt.
+**ICMP** = error reporting/diagnostic channel of IP: **destination unreachable** (including Type 3/Code 4 for PMTUD), **time exceeded** (TTL=0), **redirect**, **echo request/reply** (ping). **Traceroute** uses increasing TTL (1,2,3,...) so each router on the path sends back a "time exceeded".
 
-**ARP**: zet IP-adres om naar MAC-adres **binnen hetzelfde subnet** via cache -> broadcast request -> unicast reply. Voor hosts buiten het subnet wordt enkel het MAC-adres van de **default gateway** gecached, niet van de eindbestemming.
+**ARP**: translates IP address to MAC address **within the same subnet** via cache → broadcast request → unicast reply. For hosts outside the subnet, only the MAC address of the **default gateway** is cached, not the final destination's.
 
-## Veelgemaakte examenvalkuilen / belangrijk om te onthouden
+## Common exam pitfalls / important to remember
 
-- **PMTUD en fragmentatie zijn incompatibel**: DF=1 + te groot packet -> router dropt en stuurt ICMP Type 3/Code 4 terug (geen stille fragmentatie). Een firewall die ICMP blokkeert geeft een **PMTUD black hole**.
-- **Count-to-infinity** is een fundamenteel probleem van distance-vector/Bellman-Ford door enkel lokale kennis; **AODV** lost dit gedeeltelijk op met **destination sequence numbers** (hoger = verser), maar lange time-outs blijven lastig.
-- **Peering is niet transitief** - en BGP draait om **AS-paths + policy**, niet om de kortste technische route (dat is het domein van OSPF/intra-domain).
-- Bij congestienotificatie: **choke packets** (traag, veel overhead) vs **ECN** (snel, weinig overhead, markeert bestaand packet) vs **RED** (vroege willekeurige drops, treft snelle zenders harder) - ken de trade-offs.
-- **ARP werkt enkel binnen het subnet**: een host buiten je subnet bereik je via je default gateway, en je ARP-cache bevat dan ook enkel een entry voor die gateway, niet voor de eindbestemming.
-- Reken-/notatieklassiekers: CIDR-notatie en subnetmask correct kunnen omzetten (bv. `/25` = `255.255.255.128`), **longest prefix match** bij overlappende routes, en IPv6 `::`-verkorting mag **maar één keer**.
-- **IPv6 SLAAC + EUI-64 = privacyprobleem**: MAC-adres in het IPv6-adres maakt tracking over netwerken mogelijk. Herkenbaar aan `ff:fe` in het midden van het interface-ID.
-- **NAT-traversal**: inkomende verbindingen geblokkeerd → STUN/TURN/UPnP/connection reversal nodig. FTP, SIP en P2P breken achter NAT.
-- **6LoWPAN**: adaptielaag voor IPv6 op 802.15.4 (IoT) — headercompressie + fragmentatie.
+- **PMTUD and fragmentation are incompatible**: DF=1 + oversized packet → router drops and sends ICMP Type 3/Code 4 back (no silent fragmentation). A firewall that blocks ICMP creates a **PMTUD black hole**.
+- **Count-to-infinity** is a fundamental problem of distance-vector/Bellman-Ford due to only local knowledge; **AODV** partially solves this with **destination sequence numbers** (higher = fresher), but long timeouts remain difficult.
+- **Peering is not transitive** — and BGP revolves around **AS paths + policy**, not the shortest technical route (that is the domain of OSPF/intra-domain).
+- For congestion notification: **choke packets** (slow, much overhead) vs **ECN** (fast, little overhead, marks existing packet) vs **RED** (early random drops, hits fast senders harder) — know the trade-offs.
+- **ARP only works within the subnet**: a host outside your subnet is reached via your default gateway, and your ARP cache then only contains an entry for that gateway, not for the final destination.
+- Calculation/notation classics: correctly convert CIDR notation and subnet mask (e.g. `/25` = `255.255.255.128`), **longest prefix match** with overlapping routes, and IPv6 `::` abbreviation may only be used **once**.
+- **IPv6 SLAAC + EUI-64 = privacy problem**: MAC address in the IPv6 address enables tracking across networks. Recognizable by `ff:fe` in the middle of the interface ID.
+- **NAT traversal**: incoming connections blocked → STUN/TURN/UPnP/connection reversal needed. FTP, SIP and P2P break behind NAT.
+- **6LoWPAN**: adaptation layer for IPv6 on 802.15.4 (IoT) — header compression + fragmentation.

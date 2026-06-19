@@ -365,6 +365,8 @@ Bij een normale succesvolle handshake krijg je:
 
 De betekenis van de drie handshake-berichten en de waarden van **SYN** en **ACK** zijn klassieke examenvragen.
 
+![alt text](handshake.png)
+
 ## Verbinding afsluiten
 
 Een TCP-verbinding afsluiten is subtieler dan opzetten. Je moet het eigenlijk zien als **twee simplex-richtingen** die apart gesloten worden.
@@ -376,6 +378,8 @@ Daarna komt de **TIME_WAIT**-fase. TCP wacht daar nog een tijd, typisch tweemaal
 ### waarom bestaat TIME_WAIT?
 
 Om te vermijden dat oude packets van een vorige verbinding per ongeluk in een nieuwe verbinding met dezelfde socket-combinatie terechtkomen.
+
+![alt text](image.png)
 
 ## TCP als state machine
 
@@ -797,6 +801,8 @@ Daarom is er een **slow-start threshold**:
 - na congestie opnieuw ingesteld op ongeveer de helft van de huidige congestion window
 
 Zolang je onder die threshold zit, gebruik je exponentiele groei. Eens erboven schakel je over op additive increase.
+
+![alt text](image-1.png)
 
 ## Tahoe en Reno: TCP congestion control in detail
 

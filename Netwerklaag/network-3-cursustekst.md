@@ -279,6 +279,8 @@ BGP kiest via welke **organisatie of provider** je het gebouw buiten gaat.
 
 BGP kiest routes op basis van **AS-paths en policy**, niet puur op basis van een technische kortstepadmetric.
 
+![alt text](OSPF_BGP.png)
+
 ## Waarom OSPF en BGP zo verschillend zijn
 
 Nu zie je waarom het internet twee grote routinglagen nodig heeft:

@@ -1,10 +1,10 @@
-# Applicatielaag (Laag 7) — Spiekbriefje
+# Application Layer (Layer 7) — Cheat Sheet
 
-De applicatielaag is de bovenste laag: hier worden ruwe TCP/UDP-verbindingen vertaald naar concrete diensten (web, mail, bestanden, P2P). Elk protocol kiest zijn eigen stijl van commando's, sessiebeheer en (on)veiligheid, maar leunt voor transport vrijwel altijd op **TCP** (betrouwbaar) of **UDP** (lichtgewicht, geen setup nodig).
+The application layer is the topmost layer: here raw TCP/UDP connections are translated into concrete services (web, mail, files, P2P). Each protocol chooses its own style of commands, session management and (in)security, but almost always relies on **TCP** (reliable) or **UDP** (lightweight, no setup needed) for transport.
 
 ## OSI / TCP-IP / Tanenbaum stacks
 
-| Laag | OSI | TCP/IP | Tanenbaum |
+| Layer | OSI | TCP/IP | Tanenbaum |
 |---|---|---|---|
 | 7 | Application | Application | Application |
 | 6 | Presentation | ↑ | ↑ |
@@ -14,131 +14,131 @@ De applicatielaag is de bovenste laag: hier worden ruwe TCP/UDP-verbindingen ver
 | 2 | Data Link | Network Access | Data Link |
 | 1 | Physical | ↑ | Physical |
 
-- **Lastige gevallen**: DHCP = applicatielaag (UDP broadcast); RTP = applicatielaag (bovenop UDP); OSPF = netwerklaag (direct over IP, geen TCP/UDP).
-- OSI = referentiemodel (7 lagen, nooit volledig geïmplementeerd), TCP/IP = praktisch model (4 lagen, succesvol gedeployed).
+- **Tricky cases**: DHCP = application layer (UDP broadcast); RTP = application layer (on top of UDP); OSPF = network layer (directly over IP, no TCP/UDP).
+- OSI = reference model (7 layers, never fully implemented), TCP/IP = practical model (4 layers, successfully deployed).
 
-## UDP-applicaties: waarom geen TCP?
+## UDP applications: why not TCP?
 
-| App | Waarom UDP |
+| App | Why UDP |
 |---|---|
-| **DNS** | Kleine queries, stateless, anycast-compatibel; TCP fallback bij grote antwoorden |
-| **DHCP** | Client heeft nog geen IP → TCP handshake onmogelijk; broadcast nodig |
-| **Wake-on-LAN** | Doelhost is uit → kan geen TCP-verbinding opzetten; magic packet = broadcast |
+| **DNS** | Small queries, stateless, anycast-compatible; TCP fallback for large responses |
+| **DHCP** | Client has no IP yet → TCP handshake impossible; broadcast needed |
+| **Wake-on-LAN** | Target host is powered off → cannot set up a TCP connection; magic packet = broadcast |
 
-Rode draad: TCP vereist een werkende verbinding aan beide kanten — dat is precies wat bij deze apps nog niet bestaat.
+Common thread: TCP requires a working connection on both sides — that is precisely what does not yet exist for these apps.
 
 ## Remote login: Telnet vs SSH
 
-- **Telnet** (poort 23, TCP): stuurt commando's en tekst in **plaintext**, geen serverauthenticatie. Fases: connection management → optional negotiation → control → data transfer. Onveilig, maar nog steeds bruikbaar als **debugtool** voor tekstuele protocollen boven TCP (SMTP, HTTP).
-- **SSH**: veilige opvolger, drie lagen:
-  - **Transport layer**: key exchange + serverauthenticatie (veilige tunnel)
-  - **Authentication layer**: gebruikersauthenticatie (wachtwoord of public key)
-  - **Connection layer**: diensten erbovenop (terminal, file transfer, TCP forwarding)
-  - Bij **public-key authenticatie** bewijst de client dat hij de private key heeft, zonder die te versturen.
+- **Telnet** (port 23, TCP): sends commands and text in **plaintext**, no server authentication. Phases: connection management → optional negotiation → control → data transfer. Insecure, but still usable as a **debug tool** for text-based protocols over TCP (SMTP, HTTP).
+- **SSH**: secure successor, three layers:
+  - **Transport layer**: key exchange + server authentication (secure tunnel)
+  - **Authentication layer**: user authentication (password or public key)
+  - **Connection layer**: services on top (terminal, file transfer, TCP forwarding)
+  - With **public-key authentication**, the client proves it has the private key without transmitting it.
 
-## E-mail: architectuur en protocollen
+## Email: architecture and protocols
 
-E-mail is een **keten**: sender user agent → mail submission → message transfer agent → SMTP tussen mailservers → message transfer agent → final delivery → receiver user agent. Berichten volgen het **Internet Message Format** (headers: `To`, `Cc`, `Bcc`, `From`, `Received`, `Return-Path`, ...).
+Email is a **chain**: sender user agent → mail submission → message transfer agent → SMTP between mail servers → message transfer agent → final delivery → receiver user agent. Messages follow the **Internet Message Format** (headers: `To`, `Cc`, `Bcc`, `From`, `Received`, `Return-Path`, ...).
 
 | | POP | IMAP | Webmail |
 |---|---|---|---|
-| Werking | Haalt mail lokaal op, weinig sync | Houdt mappen (inbox/drafts/...) gesynchroniseerd | Browser = client, alles op server |
-| Voordeel | Eenvoudig | Goed voor meerdere toestellen | Lichtgewicht client, overal bruikbaar |
-| Nadeel | Moeilijk over meerdere toestellen | Meer overhead/complexiteit | Vereist internetverbinding |
+| Operation | Downloads mail locally, little sync | Keeps folders (inbox/drafts/...) synchronized | Browser = client, everything on server |
+| Advantage | Simple | Good for multiple devices | Lightweight client, accessible anywhere |
+| Disadvantage | Difficult across multiple devices | More overhead/complexity | Requires internet connection |
 
-**SMTP** = command/response **relay-protocol tussen mailservers** (niet voor mailbox-sync!). Drie fasen: handshaking → transfer → closure. Flow: `HELO` → `MAIL FROM` → `RCPT TO` → `DATA` → bericht → `.` → `QUIT`. Omdat het tekstueel is, kan je het testen via Telnet.
+**SMTP** = command/response **relay protocol between mail servers** (not for mailbox sync!). Three phases: handshaking → transfer → closure. Flow: `HELO` → `MAIL FROM` → `RCPT TO` → `DATA` → message → `.` → `QUIT`. Because it is text-based, you can test it via Telnet.
 
-## Het web: URI, HTML, HTTP
+## The web: URI, HTML, HTTP
 
-- **URI** = identifier voor een resource (kan `mailto:`, `ftp://`, `http://`, ...). Een **URL** is de bekendste vorm, combineert protocol + server + resource.
-- Webgebruikers gebruiken namen → **DNS** vertaalt naar IP's (zie verder).
-- **HTML** structureert tekst en geeft betekenis/opmaak via tags + links.
-- **HTTP** = request/response protocol, op TCP, traditioneel poort 80, **stateless** (geen ingebouwd sessiegeheugen — context via cookies/sessies/app-logica). Methodes: `GET` (document opvragen), `HEAD` (alleen headers), `POST` (data sturen), plus `PUT`, `OPTIONS`, `DELETE`. Ook HTTP/1.x kan je testen via Telnet (leesbare requests).
+- **URI** = identifier for a resource (can be `mailto:`, `ftp://`, `http://`, ...). A **URL** is the most common form, combining protocol + server + resource.
+- Web users use names → **DNS** translates to IPs (see below).
+- **HTML** structures text and provides meaning/formatting via tags + links.
+- **HTTP** = request/response protocol, over TCP, traditionally port 80, **stateless** (no built-in session memory — context via cookies/sessions/app logic). Methods: `GET` (request document), `HEAD` (headers only), `POST` (send data), plus `PUT`, `OPTIONS`, `DELETE`. HTTP/1.x can also be tested via Telnet (human-readable requests).
 
-### HTTP-versies vergeleken
+### HTTP versions compared
 
-| Versie | Kenmerk | Probleem/voordeel |
+| Version | Feature | Problem/advantage |
 |---|---|---|
-| **HTTP/1.0** | Eén TCP-verbinding per object | Inefficiënt: extra round trips, telkens nieuwe TCP-opstart + congestion control van klein begin |
-| **HTTP/1.1** | **Persistent connections** + **pipelining** | Hergebruik van verbinding verlaagt overhead; pipelining stuurt meerdere requests zonder te wachten op elk antwoord (werkt minder goed bij afhankelijkheden tussen resources) |
-| **HTTP/2** | Binair formaat, **framing**, **multiplexing**, prioritisatie — binnen één TCP-verbinding (kwam uit SPDY) | Lost het "veel aparte objecten ophalen"-probleem structureel op |
+| **HTTP/1.0** | One TCP connection per object | Inefficient: extra round trips, each time new TCP startup + congestion control from small start |
+| **HTTP/1.1** | **Persistent connections** + **pipelining** | Reusing connections reduces overhead; pipelining sends multiple requests without waiting for each response (works less well with dependencies between resources) |
+| **HTTP/2** | Binary format, **framing**, **multiplexing**, prioritization — within one TCP connection (originated from SPDY) | Structurally solves the "fetching many separate objects" problem |
 
-## FTP: gescheiden control en data
+## FTP: separate control and data
 
-FTP gebruikt **twee TCP-poorten**: poort 21 voor **control** (Telnet-achtig commandokanaal, NVT), poort 20 voor **data**. Dit splitst sessiebeheer (persistent) van datatransfer (per overdracht), in tegenstelling tot HTTP waar control+data samen lopen. Commando's: `USER`, `PASS`, `CWD`, `PASV`, `RETR`, `STOR`, `LIST`, `QUIT`.
+FTP uses **two TCP ports**: port 21 for **control** (Telnet-like command channel, NVT), port 20 for **data**. This separates session management (persistent) from data transfer (per transfer), unlike HTTP where control+data run together. Commands: `USER`, `PASS`, `CWD`, `PASV`, `RETR`, `STOR`, `LIST`, `QUIT`.
 
-## DHCP: automatische netwerkconfiguratie
+## DHCP: automatic network configuration
 
-**DHCP** (RFC 2131, **UDP**) geeft hosts automatisch IP-adres, subnetmask, gateway en DNS-server als **lease** (tijdelijk, geen permanent eigendom). Kernflow:
+**DHCP** (RFC 2131, **UDP**) automatically assigns hosts an IP address, subnet mask, gateway and DNS server as a **lease** (temporary, not permanent ownership). Core flow:
 
-`DHCPDISCOVER` (client, broadcast vanaf `0.0.0.0`) → `DHCPOFFER` (server) → `DHCPREQUEST` (client, broadcast) → `DHCPACK` (server)
+`DHCPDISCOVER` (client, broadcast from `0.0.0.0`) → `DHCPOFFER` (server) → `DHCPREQUEST` (client, broadcast) → `DHCPACK` (server)
 
-- Het **berichttype** zit in een **option**, niet als vast headerveld.
-- **Transaction ID** koppelt antwoorden aan requests.
-- Lease wordt vernieuwd bij ~50% verstreken tijd; bij weigering volgt `DHCPNAK`.
-- `DHCPRELEASE` = adres vrijwillig teruggeven.
-- Na toewijzing: **Duplicate Address Detection via ARP** — bij conflict stuurt de client `DHCPDECLINE`.
-- **Waarom geen TCP?** TCP vereist een 3-way handshake met geldig bron- én bestemmings-IP; tijdens DISCOVER heeft de client geen van beide. UDP laat broadcast vanaf `0.0.0.0` naar `255.255.255.255` toe zonder voorafgaande state.
+- The **message type** is in an **option**, not as a fixed header field.
+- **Transaction ID** links responses to requests.
+- Lease is renewed at ~50% elapsed time; upon refusal a `DHCPNAK` follows.
+- `DHCPRELEASE` = voluntarily returning an address.
+- After assignment: **Duplicate Address Detection via ARP** — upon conflict the client sends `DHCPDECLINE`.
+- **Why not TCP?** TCP requires a 3-way handshake with valid source and destination IP; during DISCOVER the client has neither. UDP allows broadcast from `0.0.0.0` to `255.255.255.255` without prior state.
 
-## DNS: namen naar adressen
+## DNS: names to addresses
 
-Vroeger één centraal `hosts.txt`-bestand — schaalde niet. DNS is een **hiërarchische, gedistribueerde** oplossing.
+Previously one central `hosts.txt` file — did not scale. DNS is a **hierarchical, distributed** solution.
 
-- Namen zijn **niet case-sensitive** (URL-paden kunnen dat wel zijn), en eindigen technisch op een punt (`www.google.com.`).
-- **Hiërarchie** van rechts naar links: `nix.cs.kuleuven.ac.be` → land (`be`) → academisch domein (`ac`) → organisatie (`kuleuven`) → afdeling (`cs`) → host (`nix`). Vergelijk met een postadres: breed → specifiek.
-- **TLD's**: landcodes (`.be`), generiek (`.com`, `.org`), VS-specifiek (`.edu`, `.gov`, `.mil`). Beheerd door **ICANN** (sinds 1998), gedelegeerd naar **registrars** (bv. Verisign voor `.com`, DNS Belgium voor `.be`).
-- **Resource records**: Domain Name, **TTL**, Class, Type, Value. Belangrijkste types: `A` (IPv4), `NS` (naamserver), `MX` (mailserver), `CNAME` (alias), `PTR` (reverse mapping).
-- **Server-hiërarchie**: leaf (concrete records) → branch (mix van records en verwijzingen) → root (kent TLD-servers).
-- **Zones** = niet-overlappende stukken van de namespace; meer zones = meer load balancing maar meer beheeroverhead.
-- **Authoritative** (van de bevoegde zonebeheerder) vs **cached** (tijdelijke kopie).
-- **Recursive** vs **iterative** lookup: een lokale resolver doet recursief werk voor de client, en stapt zelf iteratief van root → TLD → authoritative server. **Root/TLD-servers gebruiken anycast** voor redundantie en performantie.
+- Names are **not case-sensitive** (URL paths can be), and technically end with a dot (`www.google.com.`).
+- **Hierarchy** from right to left: `nix.cs.kuleuven.ac.be` → country (`be`) → academic domain (`ac`) → organization (`kuleuven`) → department (`cs`) → host (`nix`). Compare to a postal address: broad → specific.
+- **TLDs**: country codes (`.be`), generic (`.com`, `.org`), US-specific (`.edu`, `.gov`, `.mil`). Managed by **ICANN** (since 1998), delegated to **registrars** (e.g. Verisign for `.com`, DNS Belgium for `.be`).
+- **Resource records**: Domain Name, **TTL**, Class, Type, Value. Most important types: `A` (IPv4), `NS` (name server), `MX` (mail server), `CNAME` (alias), `PTR` (reverse mapping).
+- **Server hierarchy**: leaf (concrete records) → branch (mix of records and referrals) → root (knows TLD servers).
+- **Zones** = non-overlapping pieces of the namespace; more zones = more load balancing but more management overhead.
+- **Authoritative** (from the authorized zone administrator) vs **cached** (temporary copy).
+- **Recursive** vs **iterative** lookup: a local resolver does recursive work for the client, and itself steps iteratively from root → TLD → authoritative server. **Root/TLD servers use anycast** for redundancy and performance.
 
-| | Puur iteratief | Puur recursief | Hybride (praktijk) |
+| | Purely iterative | Purely recursive | Hybrid (practice) |
 |---|---|---|---|
-| Caching | Slecht (geen gedeelde cache) | Goed (lokale resolver cachet voor iedereen) | Goed |
-| Load op root | Hoog | Laag | Laag |
-| Latency client | Hoog (meerdere round trips) | Laag (1 round trip) | Laag |
-| Complexiteit client | Hoog | Laag | Laag |
+| Caching | Poor (no shared cache) | Good (local resolver caches for everyone) | Good |
+| Load on root | High | Low | Low |
+| Client latency | High (multiple round trips) | Low (1 round trip) | Low |
+| Client complexity | High | Low | Low |
 
-## Socketprogrammering / client-server vs P2P
+## Socket programming / client-server vs P2P
 
-Klassieke applicaties (Telnet, SSH, mail, web, FTP, DHCP/DNS) volgen het **client/server-model**: client initieert, server luistert op een bekende poort, met afgesproken protocol. Bij **P2P** leveren randmachines zelf resources (opslag, bandbreedte, CPU). Onderscheid:
-- **P2P-applicatie** (application-centric): gebruikt edge-resources, mag toch centrale onderdelen hebben.
-- **P2P-netwerk** (network-centric): volledig gedecentraliseerd, symmetrisch, zonder hiërarchie.
-Een **overlay-netwerk** is een logisch netwerk boven peers — 1 overlay-hop kan op de echte netwerklaag meerdere hops zijn, dus message passing minimaliseren.
+Classic applications (Telnet, SSH, mail, web, FTP, DHCP/DNS) follow the **client/server model**: client initiates, server listens on a well-known port, with an agreed protocol. In **P2P**, edge machines themselves provide resources (storage, bandwidth, CPU). Distinction:
+- **P2P application** (application-centric): uses edge resources, may still have central components.
+- **P2P network** (network-centric): fully decentralized, symmetric, without hierarchy.
+An **overlay network** is a logical network on top of peers — 1 overlay hop can be multiple hops on the actual network layer, so minimize message passing.
 
-## P2P-systemen
+## P2P systems
 
-- **Napster**: centrale **indexering**, gedistribueerde bestandsuitwisseling → single point of failure/attack/aanklacht (werd gesloten).
-- **Gnutella 0.4**: unstructured decentralized overlay, **flooding** met `PING`/`PONG` (peer discovery) en `QUERY`/`QUERYHIT` (search), TTL beperkt de flood. `PUSH` helpt peers achter een firewall. Bestandstransfer zelf via **HTTP**. Probleem: **search horizon** (te lage TTL = te weinig gevonden, te hoge TTL = netwerk overspoeld).
-- **Gnutella 0.6**: **super-node**-architectuur — **ultrapeers** (sterke nodes: discovery, routing, indices van leafs) en **leaf nodes** (verbinden met 1 ultrapeer, minder werk).
-  - **Monitoring/spying**: als gewone peer zie je enkel directe buren; als ultrapeer ook leaf-queries. Met **onbeperkte resources** kan een adversary veel ultrapeers draaien en zo groot deel van het zoekverkeer observeren → trade-off schaalbaarheid vs anonimiteit.
-- **Chord (DHT)**: gestructureerde oplossing — consistente hashing (SHA-1) plaatst nodes/bestanden op een ring van 0..2^160-1, lookup in **O(log N)** hops via finger tables, gegarandeerd resultaat (i.p.v. TTL-onzekerheid bij Gnutella). Hashfunctie moet **uniform verdeeld** (geen hotspots) en **collision-vrij** zijn; "virtual nodes" helpen balans.
-- **BitTorrent**: gericht op **content distribution** (i.p.v. discovery zoals Gnutella of routing zoals Chord). Discovery via web (torrent-bestand) → **tracker** → **swarm**. Bestand in **chunks** met **SHA-1 hash** (integriteit + parallel downloaden). **Rarest first**: zeldzame chunks eerst verspreiden tegen bottlenecks. **Seeder** = peer met alle chunks; gewone peers zijn down- én uploader. **Tit-for-tat**: peers die niet bijdragen worden **choked** (tegen free-riding). Nieuwere versies gebruiken een **DHT (Kademlia)** i.p.v. trackers.
+- **Napster**: central **indexing**, distributed file exchange → single point of failure/attack/lawsuit (was shut down).
+- **Gnutella 0.4**: unstructured decentralized overlay, **flooding** with `PING`/`PONG` (peer discovery) and `QUERY`/`QUERYHIT` (search), TTL limits the flood. `PUSH` helps peers behind a firewall. File transfer itself via **HTTP**. Problem: **search horizon** (too low TTL = too few found, too high TTL = network flooded).
+- **Gnutella 0.6**: **super-node** architecture — **ultrapeers** (strong nodes: discovery, routing, indices of leaves) and **leaf nodes** (connect to 1 ultrapeer, less work).
+  - **Monitoring/spying**: as a regular peer you only see direct neighbors; as an ultrapeer also leaf queries. With **unlimited resources** an adversary can run many ultrapeers and thus observe a large portion of search traffic → scalability vs anonymity trade-off.
+- **Chord (DHT)**: structured solution — consistent hashing (SHA-1) places nodes/files on a ring of 0..2^160-1, lookup in **O(log N)** hops via finger tables, guaranteed result (instead of TTL uncertainty with Gnutella). Hash function must be **uniformly distributed** (no hotspots) and **collision-free**; "virtual nodes" help with balance.
+- **BitTorrent**: focused on **content distribution** (rather than discovery like Gnutella or routing like Chord). Discovery via web (torrent file) → **tracker** → **swarm**. File in **chunks** with **SHA-1 hash** (integrity + parallel downloading). **Rarest first**: spread rare chunks first to prevent bottlenecks. **Seeder** = peer with all chunks; regular peers are both down- and uploaders. **Tit-for-tat**: peers that don't contribute are **choked** (against free-riding). Newer versions use a **DHT (Kademlia)** instead of trackers.
 
-## TOR: privacy en onion routing
+## TOR: privacy and onion routing
 
-**Onion routing**: bericht in meerdere encryptielagen, elke router pelt precies 1 laag af en kent alleen vorige/volgende hop — niet de volledige route, oorsprong, bestemming of inhoud. Client = **Onion Proxy** (SOCKS-interface, ontdekt routers via **directory server**, bouwt circuit). **Onion Routers** sturen verkeer door of zijn **exit node**. **Alle links versleuteld, behalve exit node → gewone internet** (daar is verkeer plaintext als het bv. HTTP is). Vaste **cell-grootte** (control cells vs relay cells) bemoeilijkt traffic analysis. Circuit wordt opgebouwd via `relay extend`; reverse path via **Circuit ID**. TOR beschermt vooral tegen **traffic analysis**, niet tegen een global passive adversary (timing-correlatie blijft mogelijk) — meer hops kan zelfs de kans op een gecompromitteerde node verhogen.
+**Onion routing**: message wrapped in multiple encryption layers, each router peels exactly 1 layer and knows only the previous/next hop — not the full route, origin, destination or content. Client = **Onion Proxy** (SOCKS interface, discovers routers via **directory server**, builds circuit). **Onion Routers** forward traffic or are **exit nodes**. **All links encrypted, except exit node → regular internet** (there traffic is plaintext if it's e.g. HTTP). Fixed **cell size** (control cells vs relay cells) makes traffic analysis harder. Circuit is built via `relay extend`; reverse path via **Circuit ID**. TOR primarily protects against **traffic analysis**, not against a global passive adversary (timing correlation remains possible) — more hops can even increase the chance of a compromised node.
 
-**Wat kent elke node?**
+**What does each node know?**
 
-| | Bron-IP | Bestemming | Data | Vorige hop | Volgende hop |
+| | Source IP | Destination | Data | Previous hop | Next hop |
 |---|---|---|---|---|---|
-| **Entry** | ja | nee | nee | — | ja |
-| **Middle** | nee | nee | nee | ja | ja |
-| **Exit** | nee | ja | ja (plaintext!) | ja | — |
+| **Entry** | yes | no | no | — | yes |
+| **Middle** | no | no | no | yes | yes |
+| **Exit** | no | yes | yes (plaintext!) | yes | — |
 
-- **Minimaal 3 nodes**: bij 2 nodes kent één node zowel bron als bestemming → volledige deanonymisatie.
-- **Sybil attack**: aanvaller registreert veel nepnodes als TOR-relays → vergroot kans dat aanvaller entry én exit controleert → timing-correlatie.
-- **Spying met beperkte resources**: exit nodes loggen (ziet bestemmingen, niet bronnen). Met **onbeperkte resources** (state actor): globale timing-correlatie tussen entry en exit.
+- **Minimum 3 nodes**: with 2 nodes, one node knows both source and destination → complete deanonymization.
+- **Sybil attack**: attacker registers many fake nodes as TOR relays → increases chance that attacker controls both entry and exit → timing correlation.
+- **Spying with limited resources**: exit nodes logging (sees destinations, not sources). With **unlimited resources** (state actor): global timing correlation between entry and exit.
 
 ---
 
-## Veelgemaakte examenvalkuilen / belangrijk om te onthouden
+## Common exam pitfalls / important to remember
 
-- **SMTP is geen mailbox-protocol**: het is een command/response **relay**-protocol tussen servers. POP/IMAP zijn voor client ↔ server (IMAP = sync, POP = lokaal ophalen).
-- **DHCP moet UDP gebruiken**: TCP vereist een handshake met geldige bron-/bestemmings-IP's, die de client tijdens DISCOVER nog niet heeft. Kernflow `DISCOVER → OFFER → REQUEST → ACK`, en **Duplicate Address Detection gebeurt via ARP** (niet via DHCP zelf).
-- **DNS-namen zijn niet case-sensitive**, maar URL-paden kunnen dat wel zijn. Ken de betekenis van `A`, `NS`, `MX`, `CNAME`. DNS-lookup is een **hybride**: recursief vanuit het oogpunt van de client/lokale resolver, **iteratief** hoger in de hiërarchie (root/TLD) — dit hybride model combineert lage client-complexiteit met schaalbare, stateless root-servers.
-- **FTP gebruikt 2 poorten** (21 control, 20 data) — en **Active FTP faalt achter NAT** omdat de server een inkomende verbinding naar het privé-IP van de client moet opzetten (NAT heeft daar geen mapping voor). **Passive FTP (PASV)** lost dit op: de client initieert beide verbindingen (alles outbound).
-- **P2P-applicatie ≠ P2P-netwerk**: Napster was een P2P-app met centrale indexering, geen volledig P2P-netwerk. Ken het verschil tussen Gnutella 0.4 (flooding, search horizon-probleem), Gnutella 0.6 (ultrapeers/leafs) en Chord (DHT, O(log N), gegarandeerd maar minder anoniem/robuust).
-- **TOR**: minstens **1 intermediate node** (3 nodes totaal) is nodig zodat geen enkele node zowel bron als bestemming kent. Enkel de link exit node → internet is onversleuteld. Meer hops = meer latency én potentieel méér kans op een gecompromitteerde node (1 - 0.8^N), zonder bescherming tegen een global passive adversary.
+- **SMTP is not a mailbox protocol**: it is a command/response **relay** protocol between servers. POP/IMAP are for client ↔ server (IMAP = sync, POP = local download).
+- **DHCP must use UDP**: TCP requires a handshake with valid source/destination IPs, which the client does not yet have during DISCOVER. Core flow `DISCOVER → OFFER → REQUEST → ACK`, and **Duplicate Address Detection happens via ARP** (not via DHCP itself).
+- **DNS names are not case-sensitive**, but URL paths can be. Know the meaning of `A`, `NS`, `MX`, `CNAME`. DNS lookup is a **hybrid**: recursive from the client/local resolver perspective, **iterative** higher in the hierarchy (root/TLD) — this hybrid model combines low client complexity with scalable, stateless root servers.
+- **FTP uses 2 ports** (21 control, 20 data) — and **Active FTP fails behind NAT** because the server must set up an incoming connection to the client's private IP (NAT has no mapping for that). **Passive FTP (PASV)** solves this: the client initiates both connections (everything outbound).
+- **P2P application ≠ P2P network**: Napster was a P2P app with central indexing, not a full P2P network. Know the difference between Gnutella 0.4 (flooding, search horizon problem), Gnutella 0.6 (ultrapeers/leaves) and Chord (DHT, O(log N), guaranteed but less anonymous/robust).
+- **TOR**: at least **1 intermediate node** (3 nodes total) is needed so that no single node knows both source and destination. Only the link exit node → internet is unencrypted. More hops = more latency and potentially more chance of a compromised node (1 - 0.8^N), without protection against a global passive adversary.

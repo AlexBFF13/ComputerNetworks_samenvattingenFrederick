@@ -1,77 +1,77 @@
-# Transportlaag (Laag 4) — Korte samenvatting
+# Transport Layer (Layer 4) — Short Summary
 
-De transportlaag zorgt voor **end-to-end delivery** tussen processen op verschillende hosts: data wordt verpakt in **segmenten** en is de grens tussen de applicatiewereld en het netwerk. Ze probeert tegelijk efficiënt, betrouwbaar en kostenbeheersbaar te zijn.
+The transport layer provides **end-to-end delivery** between processes on different hosts: data is packaged into **segments** and forms the boundary between the application world and the network. It tries to be efficient, reliable and cost-manageable at the same time.
 
 ## Connectionless vs connection-oriented
 
-- **Connectionless**: snel, simpel, weinig overhead, maar beperkte error control en geen flow control (veel verantwoordelijkheid bij de applicatie).
-- **Connection-oriented**: meer overhead, maar veel ingebouwde ondersteuning, met drie fasen: **establishment → data transfer → release**.
+- **Connectionless**: fast, simple, little overhead, but limited error control and no flow control (much responsibility falls on the application).
+- **Connection-oriented**: more overhead, but much built-in support, with three phases: **establishment → data transfer → release**.
 
 ## Addressing: TSAP vs NSAP
 
-- **NSAP** = netwerklaag-eindpunt (IP-adres), **TSAP** = transportlaag-eindpunt (poort). Eén IP-adres kan veel TSAPs/verbindingen hebben (analogie: één telefoonnummer, meerdere extensies).
-- **Berkeley sockets**: server doet `SOCKET → BIND → LISTEN → ACCEPT → SEND/RECEIVE → CLOSE`; client doet `SOCKET → CONNECT → SEND/RECEIVE → CLOSE`.
-- **ICP (Initial Connection Protocol)**: een process server luistert op een well-known TSAP en start de echte server pas op bij een binnenkomende verbinding (bv. `inetd`) — bespaart resources.
+- **NSAP** = network layer endpoint (IP address), **TSAP** = transport layer endpoint (port). One IP address can have many TSAPs/connections (analogy: one phone number, multiple extensions).
+- **Berkeley sockets**: server does `SOCKET → BIND → LISTEN → ACCEPT → SEND/RECEIVE → CLOSE`; client does `SOCKET → CONNECT → SEND/RECEIVE → CLOSE`.
+- **ICP (Initial Connection Protocol)**: a process server listens on a well-known TSAP and only starts the actual server upon an incoming connection (e.g. `inetd`) — saves resources.
 
-## Connection management: fundamentele problemen
+## Connection management: fundamental problems
 
-- Packets kunnen **out-of-order**, vertraagd of **gedupliceerd** aankomen — een oud, vertraagd packet kan later opnieuw opduiken (klassiek voorbeeld: dubbel uitgevoerde banktransfer).
-- **Bounded packet lifetime**: sequence numbers worden niet te snel herbruikt + real-time clock na een crash, zodat oude sequence numbers niet per ongeluk hergebruikt worden.
-- **Two generals problem**: zelfs met ACK-uitwisseling kan je nooit met absolute zekerheid weten dat beide kanten dezelfde kennis van de verbindingstoestand hebben — **er is geen perfecte oplossing**.
+- Packets can arrive **out-of-order**, delayed or **duplicated** — an old, delayed packet can reappear later (classic example: double-executed bank transfer).
+- **Bounded packet lifetime**: sequence numbers are not reused too quickly + real-time clock after a crash, so that old sequence numbers are not accidentally reused.
+- **Two generals problem**: even with ACK exchange you can never know with absolute certainty that both sides have the same knowledge of the connection state — **there is no perfect solution**.
 
 ## Error control
 
-- **End-to-end checksum** is nodig zelfs als lagere lagen al checksums doen, omdat fouten ook **binnen een defecte router** kunnen ontstaan (hop-by-hop is niet genoeg).
-- Basislogica: zender stuurt segment → ontvanger ACK't → geen ACK binnen timeout → retransmissie. Zender moet ongeACKte data bewaren.
+- **End-to-end checksum** is needed even if lower layers already do checksums, because errors can also arise **inside a faulty router** (hop-by-hop is not enough).
+- Basic logic: sender sends segment → receiver ACKs → no ACK within timeout → retransmission. Sender must keep unACKed data.
 
-### Retransmissie: waar hoort het?
+### Retransmission: where does it belong?
 
-**End-to-end argument**: retransmissie in de transportlaag is de enige die end-to-end correctheid garandeert. Datalinklaag-retransmissie (hop-by-hop) verbetert de prestatie op slechte links maar garandeert niets end-to-end. Applicatielaag-retransmissie geeft de app maximale controle maar dupliceert transportlaag-functionaliteit.
+**End-to-end argument**: retransmission in the transport layer is the only one that guarantees end-to-end correctness. Data link layer retransmission (hop-by-hop) improves performance on bad links but guarantees nothing end-to-end. Application layer retransmission gives the app maximum control but duplicates transport layer functionality.
 
-## Flow control: sliding window protocollen
+## Flow control: sliding window protocols
 
-Flow control = hoeveel data mag "in flight" zijn zodat een **trage ontvanger** niet overspoeld wordt (vs. congestion control = bescherming van het **netwerk**).
+Flow control = how much data may be "in flight" so that a **slow receiver** is not overwhelmed (vs. congestion control = protection of the **network**).
 
-| Protocol | Venstergrootte | Out-of-order | Hertransmissie bij verlies |
+| Protocol | Window size | Out-of-order | Retransmission on loss |
 |---|---|---|---|
-| **Stop-and-wait** | 1 | n.v.t. | enkel dat segment |
-| **Go-Back-N** | zender: W, ontvanger: 1 | verworpen | segment k **én alle volgende** in venster |
-| **Selective Repeat** | zender: W, ontvanger: W | gebufferd | enkel het ontbrekende/beschadigde segment |
+| **Stop-and-wait** | 1 | n/a | only that segment |
+| **Go-Back-N** | sender: W, receiver: 1 | discarded | segment k **and all following** in window |
+| **Selective Repeat** | sender: W, receiver: W | buffered | only the missing/damaged segment |
 
-- **Stop-and-wait**: data/ACK alterneren tussen 0 en 1, zender start timer; **piggybacking** = ACK meesturen met eigen data. Inefficiënt bij hoge RTT (a hoog).
-- **Go-Back-N**: cumulatieve ACKs (ACK voor n impliceert alles ≤ n is goed). Bij timeout: alles vanaf het verloren segment opnieuw → kan veel **onnodige hertransmissie** geven.
-- **Selective Repeat**: efficiënter, maar vereist buffers aan **beide kanten** en NACKs. **Belangrijke regel**: venstergrootte ≤ **helft van de sequence number space**, anders verwart de ontvanger duplicaten met nieuwe segmenten.
+- **Stop-and-wait**: data/ACK alternate between 0 and 1, sender starts timer; **piggybacking** = sending ACK along with own data. Inefficient at high RTT (high a).
+- **Go-Back-N**: cumulative ACKs (ACK for n implies everything ≤ n is good). On timeout: everything from the lost segment onward is resent → can cause much **unnecessary retransmission**.
+- **Selective Repeat**: more efficient, but requires buffers on **both sides** and NACKs. **Important rule**: window size ≤ **half of the sequence number space**, otherwise the receiver confuses duplicates with new segments.
 
-### Efficiëntieformules (sliding window)
+### Efficiency formulas (sliding window)
 
-- **a = (RTT/2) / T_trans** (propagatievertraging t.o.v. transmissietijd).
-- Stop-and-wait: **η = 1 / (1 + 2a)** — bij satelliet (RTT=2600ms, a≈956) krijg je η ≈ 0,05%, dus quasi onbruikbaar.
-- Go-Back-N / Selective Repeat: voor η ≈ 100% heb je **W ≥ 1 + 2a** nodig (bij hetzelfde voorbeeld: W ≥ ~1913 packets). Anders η ≈ W / (1 + 2a).
-- Stop-and-wait is enkel goed wanneer **a ≈ 0**, d.w.z. bandwidth-delay product < 1 packet (trage links over korte afstand, LoRa, RS-232).
+- **a = (RTT/2) / T_trans** (propagation delay relative to transmission time).
+- Stop-and-wait: **η = 1 / (1 + 2a)** — with satellite (RTT=2600ms, a≈956) you get η ≈ 0.05%, virtually unusable.
+- Go-Back-N / Selective Repeat: for η ≈ 100% you need **W ≥ 1 + 2a** (in the same example: W ≥ ~1913 packets). Otherwise η ≈ W / (1 + 2a).
+- Stop-and-wait is only good when **a ≈ 0**, i.e. bandwidth-delay product < 1 packet (slow links over short distance, LoRa, RS-232).
 
 ## Congestion control
 
-- Doelen: bandbreedte benutten, congestie vermijden, fair zijn, snel reageren.
-- **Goodput** (nuttige, aangekomen data) ≠ **throughput** — bij overbelasting kunnen verliezen/hertransmissies de goodput laten dalen → **congestion collapse**.
-- **Kleinrock's power = load / delay**: meer load is niet altijd beter als delay disproportioneel stijgt.
-- **Min-max fairness**: je kan flow A niet meer bandbreedte geven zonder flow B te benadelen.
-- **AIMD** (Additive Increase, Multiplicative Decrease): voorzichtig lineair verhogen, agressief multiplicatief verlagen bij congestie — makkelijk om netwerk in congestie te duwen, moeilijker om eruit te raken.
+- Goals: utilize bandwidth, avoid congestion, be fair, react quickly.
+- **Goodput** (useful, arrived data) ≠ **throughput** — under overload, losses/retransmissions can cause goodput to drop → **congestion collapse**.
+- **Kleinrock's power = load / delay**: more load is not always better if delay increases disproportionately.
+- **Min-max fairness**: you cannot give flow A more bandwidth without disadvantaging flow B.
+- **AIMD** (Additive Increase, Multiplicative Decrease): cautiously increase linearly, aggressively decrease multiplicatively upon congestion — easy to push the network into congestion, harder to get out.
 
 ## UDP
 
-UDP (RFC 768) is **connectionless** en lichtgewicht:
+UDP (RFC 768) is **connectionless** and lightweight:
 
-- **Biedt niet**: flow control, ordering, congestion control.
-- **Biedt wel**: ports (TSAP-adressering) en checksum (berekend over UDP-header + IP-**pseudo-header**).
-- Nuttig voor: lage overhead, geen connection setup, **anycast/broadcast/multicast** (DNS, DHCP).
+- **Does not provide**: flow control, ordering, congestion control.
+- **Does provide**: ports (TSAP addressing) and checksum (calculated over UDP header + IP **pseudo-header**).
+- Useful for: low overhead, no connection setup, **anycast/broadcast/multicast** (DNS, DHCP).
 
-## TCP: betrouwbare byte-stream
+## TCP: reliable byte stream
 
-TCP biedt een **betrouwbare, end-to-end byte-stream** (geen message service — berichtgrenzen gaan verloren). Verbinding = **full duplex**, tussen exact twee sockets, geïdentificeerd door (src IP, src port, dst IP, dst port, protocol).
+TCP provides a **reliable, end-to-end byte stream** (not a message service — message boundaries are lost). Connection = **full duplex**, between exactly two sockets, identified by (src IP, src port, dst IP, dst port, protocol).
 
-- **Sequence number** = volgnummer van de **eerste byte** in het segment; **ACK number** = volgende verwachte byte (cumulatief — ACK=2048 betekent "alles tot en met byte 2047 ontvangen").
-- Belangrijke flags: **SYN/FIN** (op-/afbouw), **ACK**, **RST** (abrupt resetten), **PSH** (snel doorgeven), **URG**, **ECE/CWR** (ECN).
-- **Window size**-veld = kern van flow control: hoeveel bytes de ontvanger nog kan accepteren.
+- **Sequence number** = sequence number of the **first byte** in the segment; **ACK number** = next expected byte (cumulative — ACK=2048 means "everything up to and including byte 2047 received").
+- Important flags: **SYN/FIN** (setup/teardown), **ACK**, **RST** (abrupt reset), **PSH** (deliver quickly), **URG**, **ECE/CWR** (ECN).
+- **Window size** field = core of flow control: how many bytes the receiver can still accept.
 
 ### 3-way handshake
 
@@ -81,63 +81,63 @@ server → SYN, ACK, SEQ=y, ACK=x+1   (SYN=1, ACK=1)
 client → ACK, ACK=y+1        (SYN=0, ACK=1)
 ```
 
-Drie stappen nodig zodat beide kanten weten dat de ander bereikbaar is, sequence numbers kent, en beide richtingen klaar zijn.
+Three steps are needed so both sides know the other is reachable, know the sequence numbers, and both directions are ready.
 
-### Afsluiten
+### Closing
 
-Twee simplex-richtingen worden apart gesloten via **FIN**. Daarna **TIME_WAIT** (≈ 2× max packet lifetime) zodat oude segmenten kunnen "uitsterven" — voorkomt dat oude packets in een nieuwe verbinding met dezelfde socket-combinatie terechtkomen. TCP is een **state machine met 11 toestanden** (CLOSED, LISTEN, SYN_SENT, ESTABLISHED, TIME_WAIT, ...).
+Two simplex directions are closed separately via **FIN**. Then **TIME_WAIT** (≈ 2× max packet lifetime) so old segments can "die out" — prevents old packets from ending up in a new connection with the same socket combination. TCP is a **state machine with 11 states** (CLOSED, LISTEN, SYN_SENT, ESTABLISHED, TIME_WAIT, ...).
 
 ### Sliding window & flow control
 
-- ACK en buffer-allocatie zijn losgekoppeld: `ACK=4096, WIN=0` betekent "alles tot 4095 ontvangen, maar geen buffer vrij" → zender mag niets nieuws sturen.
-- **Window probes**: als advertised window 0 is en de update-melding verloren gaat, voorkomt een window probe een **deadlock**.
+- ACK and buffer allocation are decoupled: `ACK=4096, WIN=0` means "everything up to 4095 received, but no buffer available" → sender may not send anything new.
+- **Window probes**: if advertised window is 0 and the update notification is lost, a window probe prevents a **deadlock**.
 
 ### Tinygram syndrome / Nagle / Silly Window Syndrome
 
-- **Delayed ACKs**: ontvanger wacht (tot ~200ms) om ACK te piggybacken.
-- **Nagle's algorithm**: zender buffert kleine data zolang er een onbevestigd segment onderweg is — slecht voor interactieve apps (games, SSH); uit te schakelen via **TCP_NODELAY**.
-- **Silly Window Syndrome / Clarke's algorithm**: ontvanger wacht met window updates tot er minstens een MSS past of buffer halfleeg is. Nagle (zender) en Clarke (ontvanger) zijn complementair.
-- **Interactie**: Nagle + delayed ACK kan systematisch ~200ms latency geven bij kleine interacties (geen echte deadlock, wel structurele vertraging). Oplossing: `TCP_NODELAY` en/of `TCP_QUICKACK`.
+- **Delayed ACKs**: receiver waits (up to ~200ms) to piggyback the ACK.
+- **Nagle's algorithm**: sender buffers small data as long as there is an unacknowledged segment in transit — bad for interactive apps (games, SSH); disable via **TCP_NODELAY**.
+- **Silly Window Syndrome / Clarke's algorithm**: receiver waits with window updates until at least one MSS fits or buffer is half empty. Nagle (sender) and Clarke (receiver) are complementary.
+- **Interaction**: Nagle + delayed ACK can systematically add ~200ms latency for small interactions (no real deadlock, but structural delay). Solution: `TCP_NODELAY` and/or `TCP_QUICKACK`.
 
 ### Timers
 
-| Timer | Doel |
+| Timer | Purpose |
 |---|---|
-| **RTO** (retransmission timeout) | wanneer opnieuw versturen bij geen ACK; gebaseerd op **SRTT** + **RTTVAR** |
-| **Persistence timer** | stuurt window probe bij WIN=0 |
-| **Keep-alive timer** | check of peer nog leeft (optioneel) |
-| **TIME_WAIT timer** | laat oude segmenten uitsterven na sluiten |
+| **RTO** (retransmission timeout) | when to retransmit if no ACK; based on **SRTT** + **RTTVAR** |
+| **Persistence timer** | sends window probe when WIN=0 |
+| **Keep-alive timer** | checks if peer is still alive (optional) |
+| **TIME_WAIT timer** | lets old segments die out after closing |
 
 ### Congestion control in TCP
 
-- Effectieve zendlimiet = **min(receiver window, congestion window)** — receiver window beschermt tegen trage ontvanger, congestion window tegen vol netwerk.
-- TCP gebruikt **packet loss** als impliciet congestiesignaal (werkt goed op bekabelde netwerken, minder op draadloze).
-- **ACK clock**: nieuwe data wordt verstuurd op het tempo waarop ACKs terugkomen, en dat tempo wordt bepaald door de **bottleneck** — zelfregulerend, voorkomt bursts.
-- **Slow start**: congestion window groeit **exponentieel** (verdubbelt per RTT) tot **slow-start threshold**, daarna **additive increase** (AIMD). Na congestie wordt threshold ≈ helft van de huidige congestion window.
-- **Tahoe**: viel hard terug bij verlies. **Reno**: voegde **fast recovery** toe via duplicate ACKs — hertransmit snel, val terug tot rond de nieuwe threshold, ga door met additive increase (werkt vooral goed bij **één** verlies).
-- **SACK**: ontvanger meldt welke byte-ranges al ontvangen zijn, zodat zender gericht kan hertransmitteren bij **meerdere verliezen** — via header options, dus compatibel.
-- **ECN**: routers markeren packets vóór een drop (i.p.v. packet loss als signaal); TCP reageert via **ECE/CWR** flags. Minder wijdverspreid dan SACK, want vereist support van beide eindhosts én netwerk.
+- Effective send limit = **min(receiver window, congestion window)** — receiver window protects against a slow receiver, congestion window against a full network.
+- TCP uses **packet loss** as an implicit congestion signal (works well on wired networks, less so on wireless).
+- **ACK clock**: new data is sent at the rate ACKs come back, and that rate is determined by the **bottleneck** — self-regulating, prevents bursts.
+- **Slow start**: congestion window grows **exponentially** (doubles per RTT) until **slow-start threshold**, then **additive increase** (AIMD). After congestion, threshold ≈ half of current congestion window.
+- **Tahoe**: fell back hard on loss. **Reno**: added **fast recovery** via duplicate ACKs — retransmit quickly, fall back to around the new threshold, continue with additive increase (works well mainly with **one** loss).
+- **SACK**: receiver reports which byte ranges have been received, so sender can retransmit selectively with **multiple losses** — via header options, so compatible.
+- **ECN**: routers mark packets before a drop (instead of packet loss as signal); TCP reacts via **ECE/CWR** flags. Less widespread than SACK, as it requires support from both end hosts and the network.
 
-**ECN vs RED vergelijking**: RED dropt willekeurig vroeg bij stijgende queue → impliciet signaal, enkel routerwijziging nodig (breed gedeployed). ECN markeert i.p.v. dropt → expliciet signaal, geen dataverlies, maar vereist support aan beide eindhosts + routers. RED treft snellere zenders relatief vaker → eerlijker; ECN is vriendelijker maar minder gedeployed.
+**ECN vs RED comparison**: RED drops randomly early with rising queue → implicit signal, only router change needed (widely deployed). ECN marks instead of drops → explicit signal, no data loss, but requires support from both end hosts + routers. RED hits faster senders relatively more often → fairer; ECN is friendlier but less deployed.
 
-## RTP (kort, ter context)
+## RTP (brief, for context)
 
-RTP (RFC 3550) draait meestal bovenop UDP en richt zich op **playback**, niet op perfecte aflevering: **te laat is vaak erger dan verloren**. Sequence number (16-bit, per packet) detecteert verlies/volgorde; **timestamp** (32-bit) zegt wanneer iets afgespeeld moet worden. **Jitter** (variatie in delay) wordt opgevangen met een **playback buffer** — trade-off tussen lage delay en weinig verlies door late aankomst. RTCP geeft feedback (delay, jitter, bandbreedte, sync).
+RTP (RFC 3550) typically runs on top of UDP and focuses on **playback**, not perfect delivery: **too late is often worse than lost**. Sequence number (16-bit, per packet) detects loss/ordering; **timestamp** (32-bit) says when something should be played. **Jitter** (variation in delay) is handled with a **playback buffer** — trade-off between low delay and little loss due to late arrival. RTCP provides feedback (delay, jitter, bandwidth, sync).
 
-## QUIC (kort)
+## QUIC (brief)
 
-QUIC (RFC 9000, ~30% van internetverkeer) is **frame-based**, draait in **userspace bovenop UDP**, met ingebouwde security (TLS 1.3-integratie, soms **0-RTT**), **stream multiplexing** (lost **head-of-line blocking** op connectieniveau op) en **connection migration** via **Connection IDs** (CID) — IP/poort mogen veranderen zonder de verbinding te verbreken (gevalideerd via PATH_CHALLENGE/PATH_RESPONSE; congestion state wordt gereset bij migratie). Sequence numbers zijn 62-bit (wraparound is geen issue meer). Congestion control gebaseerd op **Cubic (RFC 8312)**.
+QUIC (RFC 9000, ~30% of internet traffic) is **frame-based**, runs in **userspace on top of UDP**, with built-in security (TLS 1.3 integration, sometimes **0-RTT**), **stream multiplexing** (solves **head-of-line blocking** at the connection level) and **connection migration** via **Connection IDs** (CID) — IP/port may change without breaking the connection (validated via PATH_CHALLENGE/PATH_RESPONSE; congestion state is reset upon migration). Sequence numbers are 62-bit (wraparound is no longer an issue). Congestion control based on **Cubic (RFC 8312)**.
 
 ---
 
-## Veelgemaakte examenvalkuilen / belangrijk om te onthouden
+## Common exam pitfalls / important to remember
 
-- **Flow control ≠ congestion control**: flow control beschermt de ontvanger (window/buffer), congestion control beschermt het netwerk (congestion window, AIMD).
-- Bij **Go-Back-N** heeft de ontvanger venster 1 en wordt bij timeout **alles vanaf het verloren segment opnieuw** gestuurd — bij **Selective Repeat** enkel het ontbrekende deel, maar met venstergroottebeperking ≤ helft van de sequence space.
-- Reken altijd met **a = (RTT/2)/T_trans**: stop-and-wait is rampzalig bij hoge a (bv. satelliet), en Go-Back-N/SR hebben dan W ≥ 1+2a nodig voor 100% efficiëntie.
-- **Two generals problem**: geen perfecte oplossing mogelijk — absolute wederzijdse zekerheid over verbindingstoestand is niet afdwingbaar.
-- **End-to-end checksums** blijven nodig ondanks lagere-laag checksums, want fouten kunnen binnen routers ontstaan.
-- Ken de **3-way handshake** met exacte SYN/ACK-waarden, en het verschil tussen RTO/persistence timer/TIME_WAIT.
-- RTP/UDP heeft géén ACK-clock en geen congestion control → kan TCP-flows "uithongeren" (unfairness) en draagt bij aan congestion collapse bij hoge belasting. RTP gebruikt bewust geen flow/congestion control omdat **te laat erger is dan verloren** bij real-time media, en multicast (1-naar-N) het onpraktisch maakt om per ontvanger te throttlen.
-- QUIC is geen "TCP 2.0": het is een nieuw protocol met eigen connection-identificatie (CID), framing en geïntegreerde security — niet zomaar een uitbreiding. Kernverschillen: **0-RTT** setup (replay-risico!), **stream multiplexing** (geen HoL blocking op connectieniveau), **connection migration** via CID (IP/poort mogen wijzigen).
-- **Retransmissie hoort in de transportlaag** (end-to-end argument): hop-by-hop retransmissie verbetert prestatie maar garandeert niets end-to-end.
+- **Flow control ≠ congestion control**: flow control protects the receiver (window/buffer), congestion control protects the network (congestion window, AIMD).
+- With **Go-Back-N** the receiver has window 1 and on timeout **everything from the lost segment onward** is resent — with **Selective Repeat** only the missing part, but with window size constraint ≤ half of the sequence space.
+- Always calculate with **a = (RTT/2)/T_trans**: stop-and-wait is disastrous at high a (e.g. satellite), and Go-Back-N/SR then need W ≥ 1+2a for 100% efficiency.
+- **Two generals problem**: no perfect solution possible — absolute mutual certainty about connection state is not enforceable.
+- **End-to-end checksums** remain necessary despite lower-layer checksums, because errors can arise inside routers.
+- Know the **3-way handshake** with exact SYN/ACK values, and the difference between RTO/persistence timer/TIME_WAIT.
+- RTP/UDP has no ACK clock and no congestion control → can "starve" TCP flows (unfairness) and contributes to congestion collapse under high load. RTP deliberately uses no flow/congestion control because **too late is worse than lost** for real-time media, and multicast (1-to-N) makes it impractical to throttle per receiver.
+- QUIC is not "TCP 2.0": it is a new protocol with its own connection identification (CID), framing and integrated security — not just an extension. Key differences: **0-RTT** setup (replay risk!), **stream multiplexing** (no HoL blocking at connection level), **connection migration** via CID (IP/port may change).
+- **Retransmission belongs in the transport layer** (end-to-end argument): hop-by-hop retransmission improves performance but guarantees nothing end-to-end.
