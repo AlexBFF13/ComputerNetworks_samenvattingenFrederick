@@ -1,7 +1,4 @@
-# Computer Networks — Open-Book Reference Guide
-
-> G0Q43A · KU Leuven · Exam June 23, 2026
-> Optimized for quick lookup under time pressure. Focus: architectural logic, cross-layer reasoning, design choices.
+# Computer Networks
 
 ---
 
@@ -16,6 +13,7 @@
 - 1.6 HTTP 1.0 vs 1.1: persistent connections
 - 1.7 P2P chat app: overlay design choice
 - 1.8 NAT: application layer problems and traversal
+- 1.9 UDP-applicaties: waarom geen TCP
 
 **2. Transport Layer**
 - 2.1 RTP vs TCP: sequencing, download vs stream, congestion
@@ -27,6 +25,8 @@
 - 2.7 QUIC: design and difference with TCP
 - 2.8 Congestion Notification: Choke/ECN/RED
 - 2.9 TCP Connection Management: handshake, teardown, timers
+- 2.10 Retransmission: waarom in transport layer
+- 2.11 Leaky Bucket: traffic shaping
 
 **3. Network Layer**
 - 3.1 IPv4 Fragmentation vs Path MTU Discovery
@@ -215,6 +215,8 @@ TOR's security revolves around distributing knowledge: no single node in the cir
 
 Key takeaway: TOR protects against a local adversary, not against someone who simultaneously observes both ends.
 
+**Sybil Attack:** an adversary creates many fake TOR nodes to increase the probability of controlling both entry and exit of a circuit. If you control entry + exit → full deanonymization (correlate timing + content). Defense: directory authorities vet relay operators, but fundamentally hard to prevent — anyone can run a relay. A state actor with resources for hundreds of relays can statistically dominate circuits.
+
 ---
 
 ### 1.6 HTTP 1.0 vs 1.1
@@ -249,6 +251,23 @@ NAT operates at layer 3/4 (rewrites IP/port in headers) but does not inspect the
 **Two traversal techniques:**
 1. **Client-initiated connections** — FTP passive mode, Gnutella PUSH
 2. **Relays/helpers** — STUN/TURN (discover public mapping or relay via server), ALG (NAT rewrites known payloads), UPnP port mapping
+
+---
+
+### 1.9 UDP-applicaties: Waarom Geen TCP
+
+Examenvraag: noem 3 applicaties die UDP gebruiken en leg uit waarom TCP niet werkt.
+
+| Applicatie | Waarom UDP, niet TCP |
+|---|---|
+| **DNS** | Queries zijn klein en one-shot. TCP's three-way handshake per lookup is disproportionele overhead. UDP maakt anycast mogelijk (meerdere servers delen één IP) |
+| **DHCP** | Client heeft nog geen IP → kan geen TCP handshake doen (vereist geldig source IP). Moet broadcasten naar 255.255.255.255 vanuit 0.0.0.0 |
+| **Wake on LAN** | Magic packet moet via broadcast naar een slapende machine. Een slapende NIC kan geen TCP handshake uitvoeren — luistert alleen passief naar een specifiek bitpatroon |
+| **RTP (streaming)** | Late retransmissies zijn waardeloos voor live media. TCP's AIMD halveert bandbreedte bij verlies → stotterend beeld. UDP laat de applicatie zelf beslissen over timing |
+| **SNMP** | Monitoring van netwerkapparatuur, vaak op overbelaste/failing devices. TCP-verbinding opzetten naar een crashend device lukt niet; UDP fire-and-forget wel |
+| **TFTP** | Minimale implementatie voor bootstrapping (firmware flash, PXE boot). Geen TCP stack nodig in de bootloader |
+
+**Kernredenering:** TCP is ongeschikt wanneer: (1) de ontvanger geen IP heeft, (2) broadcast nodig is, (3) de ontvanger niet kan antwoorden (slaapt/crasht), of (4) retransmissie zinloos is (real-time).
 
 ---
 
@@ -448,6 +467,60 @@ TCP has multiple timers to handle situations where packets or ACKs are lost — 
 | **Persistence** | Window probe at WIN=0 | Prevents deadlock if window-update ACK is lost (see 2.3) |
 | **Keep-alive** | Detects dead connections | Optional; periodically sends probe if no data for a long time — prevents half-open connections |
 | **TIME_WAIT (2×MSL)** | After close: wait until all segments from old connection have expired | Prevents a new connection on the same port from accepting old segments |
+
+---
+
+### 2.10 Retransmission: Waarom in Transport Layer
+
+Retransmissie kan op drie lagen. De vraag is: waar levert het de beste trade-off tussen betrouwbaarheid en efficiëntie?
+
+| Laag | Voordelen | Nadelen |
+|---|---|---|
+| **Data Link (hop-by-hop)** | Snelle lokale recovery, lage latency | Herstelt alleen één hop; end-to-end fouten (router crash, routing loop) worden niet gedekt. Onnodig op betrouwbare links (fiber) |
+| **Transport (end-to-end)** | Garandeert correcte aflevering ongeacht aantal hops. Eén mechanisme dekt alle faalscenario's | Hogere latency bij herstel (hele pad opnieuw). Kan wireless loss verwarren met congestie (zie 4.5) |
+| **Application** | App beslist zelf wat "betrouwbaar genoeg" is (bijv. video: skip frame, file: retry) | Elke applicatie moet het zelf implementeren → code duplicatie, foutgevoelig |
+
+**Waarom transport de juiste plek is (end-to-end argument van Saltzer):** alleen de eindpunten weten of data correct is aangekomen. Tussenliggende hops kunnen lokale fouten herstellen, maar kunnen niet garanderen dat het hele pad betrouwbaar is. Daarom is end-to-end controle in de transport layer noodzakelijk, en is hop-by-hop recovery **aanvullend** (niet vervangend).
+
+**Uitzondering:** op zeer lossy links (802.11, sensor mesh) is hop-by-hop ARQ wél waardevol — het voorkomt dat TCP elke wireless loss als congestie interpreteert.
+
+---
+
+### 2.11 Leaky Bucket: Traffic Shaping
+
+De leaky bucket is een traffic shaping mechanisme dat bursty verkeer omzet in een constante stroom. Het model: een emmer met een gat onderin dat lekt met een vaste snelheid.
+
+**Parameters:**
+- **R** (leak rate): maximale output rate (bytes/sec) — constante afvoer
+- **B** (bucket size): maximale burst die geabsorbeerd kan worden
+
+**Werking:**
+```
+Inkomend verkeer (bursty) → [Bucket, capaciteit B] → uitstroom met max R bytes/sec
+```
+
+1. Pakket arriveert → als emmer niet vol: pakket wordt toegevoegd
+2. Emmer vol → pakket wordt **gedropped** (of gebufferd/vertraagd)
+3. Uitstroom is altijd ≤ R, ongeacht hoe bursty de input is
+
+**Grafiek (typische examenvraag):**
+
+```
+Input rate ║     ████
+           ║  ███    ██
+           ║██         ██     ← bursty input
+           ╠══════════════
+Output rate║────────────────  ← constante R
+           ╚══════════════▶ tijd
+```
+
+**Token Bucket (vergelijking):** laat korte bursts door tot B tokens beschikbaar zijn, daarna beperkt tot R. Flexibeler dan leaky bucket: output kan tijdelijk > R zijn (tot B tokens op). Leaky bucket dwingt strikte constante output af.
+
+| Eigenschap | Leaky Bucket | Token Bucket |
+|---|---|---|
+| Output rate | Strikt ≤ R (altijd) | Korte burst tot B+R, daarna ≤ R |
+| Burst tolerantie | Geen — alles wordt afgevlakt | Ja — tot B tokens |
+| Gebruik | Strikte traffic policing | Traffic shaping met burst tolerantie |
 
 ---
 

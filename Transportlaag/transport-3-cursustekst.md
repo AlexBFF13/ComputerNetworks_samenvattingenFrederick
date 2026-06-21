@@ -101,7 +101,7 @@ Een CID is als het ware een stabieler label voor de connectie dan "van dit IP na
 
 ## QUIC is frame-based
 
-In QUIC worden verschillende soorten informatie in **frames** verpakt. Dat maakt het protocol veel explicieter en modularer.
+In QUIC worden verschillende soorten informatie in **frames** verpakt. Dat maakt het protocol veel explicieter en modulairer.
 
 Voorbeelden:
 

@@ -44,6 +44,7 @@
   - [4.7 MAC Protocols with AODV](#47-mac-protocols-with-aodv--which-work-which-dont)
   - [4.8 Channel Hopping](#48-channel-hopping--advantages)
   - [4.9 Stop-and-Wait Analysis](#49-stop-and-wait-analysis--which-medium-goodbad-throughput-calculation)
+  - [4.10 Wireless Frame Loss and TCP Interaction](#410-wireless-frame-loss-and-tcp-congestion-control-interaction)
 
 ---
 
@@ -54,6 +55,17 @@
 ### 1.1 Gnutella 0.4 / 0.6 — Message Types, Routing, TTL, and 0.4 vs 0.6
 
 Gnutella is a decentralized P2P overlay network built on top of TCP/IP. Unlike Napster (which used a central index server), Gnutella distributes discovery across all participating peers. This removes the single point of failure but introduces significant overhead.
+
+**Why Gnutella uses TCP (not UDP)**
+
+Gnutella overlay messages (PING, PONG, QUERY, QUERYHIT) require **reliable, error-free delivery**. A lost QUERYHIT means a file is never found even though it exists. TCP guarantees this reliability. Broadcast is not needed because the overlay has its own flooding mechanism. File transfer also uses HTTP (which runs on TCP).
+
+**How a new node joins the overlay (PING/PONG)**
+
+1. The new node sends a **PING** to a known existing node (bootstrap).
+2. That node **floods** the PING through the overlay network.
+3. Nodes that can accept new connections respond with a **PONG** (containing their IP, port, and metadata).
+4. The new node establishes TCP connections with responding peers and becomes part of the overlay.
 
 **Gnutella 0.4 message types**
 
@@ -229,6 +241,32 @@ Three protocol stack models are used in the course. The OSI model is a **referen
 | **ARP** | Between Network and Data Link | In the TCP/IP model, it is part of the Network Access layer |
 
 **Key exam point**: the answer to "which layer?" depends on which model you use. Always state the model.
+
+**Why RTP and DHCP can be argued to belong to other layers**
+
+| Protocol | "Official" layer | Alternative layer | Argument for official | Argument for alternative |
+|----------|-----------------|-------------------|----------------------|-------------------------|
+| **RTP** | Application (7) | Transport (4) | Implemented in **user space** (not in the OS kernel); uses UDP as its transport | Provides a **general-purpose transport service** (sequencing, timestamping) not tied to any specific application |
+| **DHCP** | Application (7) | Network (3) | Is itself an application that exchanges configuration data; uses UDP for transport | Assigns **IP addresses**, which are network-layer identifiers — essential for network-layer operation |
+
+**Connection-oriented vs Connectionless**
+
+| Property | Connection-oriented | Connectionless |
+|----------|-------------------|----------------|
+| Setup | Connection established first (e.g. handshake) | No connection setup — data sent immediately |
+| Ordering | Guaranteed in-order delivery | No ordering guarantees |
+| Error control | ACKs, retransmission | No error control |
+| Overhead | Higher (state, setup, teardown) | Lower (fast, simple) |
+
+**Examples per layer:**
+
+| Layer | Connection-oriented | Connectionless |
+|-------|-------------------|----------------|
+| Application | Telnet, SSH, SMTP, FTP | HTTP (stateless!), DNS, DHCP |
+| Transport | TCP | UDP |
+| Data Link | Telephone / serial line | Ethernet, ALOHA |
+
+**Cross-layer insight (exam favorite):** HTTP is **connectionless/stateless at the application layer** but runs on **connection-oriented TCP** at the transport layer. An application protocol can be connectionless while its underlying transport is connection-oriented. For applications, connectionless = **stateless**.
 
 ---
 
@@ -614,7 +652,11 @@ For 100% efficiency you need W >= 1 + 2a. Stop-and-wait is only acceptable when 
 **Sequence number limitations (frequently asked):**
 
 - **Go-Back-N** needs at least **W + 1** sequence numbers. The receiver has window 1. If all W ACKs are lost and the sender retransmits everything, the receiver must distinguish new segments from retransmissions.
-- **Selective Repeat** needs at least **2W** sequence numbers (window at most half the sequence space). The receiver now also has a window of W and buffers out-of-order. This stricter requirement comes from having a receiver window > 1.
+- **Selective Repeat** needs at least **2W** sequence numbers (window at most half the sequence space). The receiver now also has a window of W and buffers out-of-order. If the window were larger than half the sequence space, the receiver could — upon losing all ACKs — **mistakenly accept retransmitted old segments as new data**, because the sequence numbers of the retransmissions overlap with the current receive window.
+
+**NACK (Negative Acknowledgment)**
+
+A NACK explicitly reports the sequence number of a **damaged or missing** segment. When the receiver gets a packet with a sequence number higher than expected, it knows intermediate packets were lost. Instead of waiting for a timeout, it sends a NACK to request retransmission of **only the missing segments**, avoiding unnecessary retransmission of correctly received packets. NACKs are used in **Selective Repeat**.
 
 ---
 
@@ -724,6 +766,8 @@ The router picks the neighbor yielding the lowest total cost.
 
 **The Count-to-Infinity problem:**
 
+Key principle: **"Good news travels fast, bad news travels slowly."** A cost decrease (good news) propagates in a single round because each router immediately adopts a better route. A cost increase (bad news) only rises by 1 per exchange round, causing slow convergence toward infinity.
+
 When a destination becomes unreachable, routers get trapped in circular reasoning. Consider three routers A—B—C where A is directly connected to destination X. When A—X fails:
 
 1. A sets its cost to X to infinity
@@ -742,7 +786,13 @@ When a destination becomes unreachable, routers get trapped in circular reasonin
 | **Poison reverse** | Advertise the route back with cost = infinity | Better, but still fails with larger loops |
 | **Maximum metric** | Define a maximum (e.g., RIP uses 16 = unreachable) | Limits duration, does not prevent loops |
 
-**How AODV solves count-to-infinity:** AODV uses **destination sequence numbers**. Each route carries a sequence number incremented by the destination. A higher sequence number is always fresher. When a link fails, the detecting node sends a RERR with an incremented sequence number. Nodes with stale sequence numbers discard their old route immediately — no loop can form.
+**How AODV solves count-to-infinity:** AODV uses **destination sequence numbers**. Each route carries a sequence number incremented by the destination. A higher sequence number is always fresher. When a link fails:
+
+1. The detecting node **purges** the entry for the failed neighbor from its routing table.
+2. It sends a **RERR** (Route Error) with an incremented sequence number to **all neighbors using that route**.
+3. Those neighbors purge the route and propagate the RERR **recursively** until all affected nodes are notified.
+4. Nodes with stale (lower) sequence numbers discard their old route immediately — no loop can form.
+5. If a node still needs the destination, it triggers a **new ROUTE_REQUEST**.
 
 ---
 
@@ -813,6 +863,12 @@ B-MAC and TSMP represent two fundamentally different philosophies for energy-eff
 - Requires **tight time synchronization** across all nodes.
 - Also uses **frequency hopping** to spread interference risk.
 - Biggest energy cost: **(re)joining** the network.
+
+**How TSMP synchronization works:**
+1. A **master node** provides the reference clock for the network.
+2. When a new node wants to join, it **listens for existing transmissions** on the network.
+3. From the timing of received frames, the new node **sets its own hardware clock** to align with the network schedule.
+4. This synchronization process is the **primary energy cost** of TSMP — once synchronized, scheduled communication is extremely energy-efficient.
 
 **Preamble/sample-interval configuration for B-MAC:**
 
@@ -916,6 +972,8 @@ Classic Ethernet uses **1-persistent CSMA/CD**: listen first, wait if busy, tran
 
 **Why higher speeds make CSMA/CD harder:** At higher bit rates, the same 512-bit minimum frame transmits in less time, so the maximum cable length shrinks proportionally. At 10 Gbps, CSMA/CD was abandoned entirely — only full-duplex point-to-point links.
 
+**Does switched Ethernet have the same cable length limits as classical Ethernet?** No. When a hub is replaced by a switch and all links are **full-duplex**, the **collision-based cable length limit disappears entirely** because CSMA/CD is no longer needed. The only remaining limit is **signal attenuation** (~100 m for Cat5e copper). The cable length in classical Ethernet was constrained by collision detection timing; in switched full-duplex Ethernet, that constraint does not exist.
+
 ---
 
 ### 4.6 802.11 Power Saving — Beacon Frames, APSD, Two Strategies
@@ -992,3 +1050,23 @@ Stop-and-wait is efficient when the **bandwidth-delay product is smaller than th
 | Trans-Atlantic cable (RTT ~80 ms, high bandwidth) | High bandwidth-delay product means sender is idle most of the time |
 
 **Exam methodology:** Calculate `a = T_propagation / T_transmission`. If `a << 1`: stop-and-wait is fine. If `a >> 1`: a sliding window protocol is needed.
+
+---
+
+### 4.10 Wireless Frame Loss and TCP Congestion Control Interaction
+
+**Key sources of frame loss at the Data Link Layer in wireless networks:**
+
+- **RF interference**: the unlicensed spectrum bands (2.4 GHz, 5 GHz) are heavily congested — microwaves, Bluetooth, neighboring WiFi networks, and other devices all cause interference. This includes **collisions** (self-interference).
+- **Blocked/degraded paths**: signal absorption, scattering, and **multipath fading** cause frames to be lost or corrupted at certain frequencies or positions.
+
+**How this interacts with TCP congestion control:**
+
+TCP interprets **every packet loss as a congestion signal** (3 duplicate ACKs → halve cwnd; timeout → cwnd = 1). On wireless links, most losses are caused by **RF interference and fading, not congestion**. TCP therefore **unnecessarily reduces its sending rate**, resulting in poor throughput over wireless.
+
+| Loss cause | TCP's interpretation | Correct response | TCP's actual response |
+|---|---|---|---|
+| Congestion (wired) | Congestion | Slow down | Slow down (correct) |
+| RF interference (wireless) | Congestion | Retransmit, keep speed | Slow down (incorrect) |
+
+**Mitigation:** Some data-link protocols like **802.11 provide hop-by-hop ACKs and retransmissions** at the link layer. This hides wireless losses from TCP — by the time a frame reaches the IP layer, most wireless errors have already been corrected. However, this does not fully solve the problem when link-layer retransmissions also fail.
